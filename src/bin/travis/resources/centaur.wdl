@@ -4,7 +4,7 @@ task centaur {
     File pem
     File cromwell_jar
     File token
-    String secret = read_string(token)
+    String secret = token
 
     command<<<
         mkdir -p /cromwell_root/tmp/ivy2
