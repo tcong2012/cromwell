@@ -94,12 +94,12 @@ final case class ExecutionStore(private val statusStore: Map[JobKey, ExecutionSt
   }
 
   private def arePrerequisitesDone(doneKeys: List[JobKey])(key: JobKey): Boolean = {
-    val upstreamAreDone = key.scope.upstream forall {
+    lazy val upstreamAreDone = key.scope.upstream forall {
       case n @ (_: Call | _: Scatter | _: Declaration) => upstreamIsDone(key, n, doneKeys)
       case _ => true
     }
 
-    lazy val shardEntriesForCollectorAreDone: Boolean = key match {
+    val shardEntriesForCollectorAreDone: Boolean = key match {
       case collector: CollectorKey =>
         emulateShardEntries(collector)
           .map(shard => (shard.scope.fullyQualifiedName, shard.index))
@@ -109,7 +109,7 @@ final case class ExecutionStore(private val statusStore: Map[JobKey, ExecutionSt
       case _ => true
     }
 
-    upstreamAreDone && shardEntriesForCollectorAreDone
+    shardEntriesForCollectorAreDone && upstreamAreDone
   }
 
   private def upstreamIsDone(entry: JobKey, prerequisiteScope: Scope, doneKeys: List[JobKey]): Boolean = {
