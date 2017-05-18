@@ -80,6 +80,7 @@ object MetadataService {
   }
   final case class ValidateWorkflowIdAndExecute(possibleWorkflowId: String,
                                                 validationCallback: ValidationCallback) extends MetadataServiceAction
+  final case class NewValidateWorkflowId(possibleWorkflowId: WorkflowId) extends MetadataServiceAction
 
   /**
     * Responses
@@ -89,11 +90,11 @@ object MetadataService {
     def reason: Throwable
   }
 
-  case class MetadataLookupResponse(query: MetadataQuery, eventList: Seq[MetadataEvent]) extends MetadataServiceResponse
-  case class MetadataServiceKeyLookupFailed(query: MetadataQuery, reason: Throwable) extends MetadataServiceFailure
+  final case class MetadataLookupResponse(query: MetadataQuery, eventList: Seq[MetadataEvent]) extends MetadataServiceResponse
+  final case class MetadataServiceKeyLookupFailed(query: MetadataQuery, reason: Throwable) extends MetadataServiceFailure
 
-  case class StatusLookupResponse(workflowId: WorkflowId, status: WorkflowState) extends MetadataServiceResponse
-  case class StatusLookupFailed(workflowId: WorkflowId, reason: Throwable) extends MetadataServiceFailure
+  final case class StatusLookupResponse(workflowId: WorkflowId, status: WorkflowState) extends MetadataServiceResponse
+  final case class StatusLookupFailed(workflowId: WorkflowId, reason: Throwable) extends MetadataServiceFailure
 
   final case class WorkflowQuerySuccess[A](uri: A, response: WorkflowQueryResponse, meta: Option[QueryMetadata])
     extends MetadataServiceResponse
@@ -104,6 +105,11 @@ object MetadataService {
 
   final case class LogsResponse(id: WorkflowId, logs: Seq[MetadataEvent]) extends MetadataServiceResponse
   final case class LogsFailure(id: WorkflowId, reason: Throwable) extends MetadataServiceFailure
+
+  sealed abstract class WorkflowValidationResponse extends MetadataServiceResponse
+  case object RecognizedWorkflowId extends WorkflowValidationResponse
+  case object UnrecognizedWorkflowId extends WorkflowValidationResponse
+  final case class FailedToCheckWorkflowId(cause: Throwable) extends WorkflowValidationResponse
 
   def wdlValueToMetadataEvents(metadataKey: MetadataKey, wdlValue: WdlValue): Iterable[MetadataEvent] = wdlValue match {
     case WdlArray(_, valueSeq) =>

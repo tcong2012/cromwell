@@ -4,16 +4,10 @@ object Dependencies {
   lazy val lenthallV = "0.25-903b3c0-SNAP"
   lazy val wdl4sV = "0.13-4804734-SNAP"
   lazy val sprayV = "1.3.3"
-  /*
-  spray-json is an independent project from the "spray suite"
-  - https://github.com/spray/spray
-  - https://github.com/spray/spray-json
-  - http://spray.io/documentation/1.2.2/spray-httpx/spray-json-support/
-  - http://doc.akka.io/docs/akka/2.4/scala/http/common/json-support.html#akka-http-spray-json
-   */
-  lazy val sprayJsonV = "1.3.2"
+
   lazy val akkaV = "2.4.16"
-  lazy val akkaHttpV = "2.4.11.2"
+  lazy val akkaHttpV = "10.0.5"
+
   lazy val slickV = "3.2.0"
   // TODO: Re-combine these when cromwell is 2.12:
   lazy val cromwellApiClientAkkaV = "2.4.17"
@@ -68,6 +62,12 @@ object Dependencies {
     // This is to stop liquibase from being so noisy by default
     // See: http://stackoverflow.com/questions/20880783/how-to-get-liquibase-to-log-using-slf4j
     "com.mattbertolini" % "liquibase-slf4j" % "2.0.0"
+  )
+
+  val akkaHttpServerDependencies = List( // FIXME: do that cool map trick from circe
+    "org.webjars" % "swagger-ui" % "2.1.1",
+    "com.typesafe.akka" %% "akka-http" % akkaHttpV,
+    "com.typesafe.akka" %% "akka-http-testkit" % akkaHttpV
   )
 
   private val sprayServerDependencies = List(
@@ -126,7 +126,7 @@ object Dependencies {
     "com.typesafe.scala-logging" %% "scala-logging" % "3.4.0",
     "org.broadinstitute" %% "wdl4s" % wdl4sV,
     "org.apache.commons" % "commons-lang3" % "3.4",
-    "io.spray" %% "spray-json" % sprayJsonV,
+    "com.typesafe.akka" %% "akka-http-spray-json" % akkaHttpV,
     "com.typesafe" % "config" % "1.3.0",
     "com.typesafe.akka" %% "akka-actor" % akkaV,
     "com.typesafe.akka" %% "akka-slf4j" % akkaV,
@@ -134,9 +134,8 @@ object Dependencies {
     "com.google.guava" % "guava" % "20.0",
     "com.google.auth" % "google-auth-library-oauth2-http" % "0.6.0",
     "com.typesafe.akka" %% "akka-http-core" % akkaHttpV,
-    "com.typesafe.akka" %% "akka-stream-testkit" % akkaHttpV,
-    "com.chuusai" %% "shapeless" % "2.3.2",
-    "com.typesafe.akka" %% "akka-http-spray-json-experimental" % akkaHttpV
+    "com.typesafe.akka" %% "akka-stream-testkit" % akkaV,
+    "com.chuusai" %% "shapeless" % "2.3.2"
   ) ++ baseDependencies ++ googleApiClientDependencies ++
     // TODO: We're not using the "F" in slf4j. Core only supports logback, specifically the WorkflowLogger.
     slf4jBindingDependencies
@@ -154,15 +153,21 @@ object Dependencies {
     "org.pegdown" % "pegdown" % "1.6.0" % Test
   )
 
+  val FixmeBackendDependencies = List(
+    "com.typesafe.akka" %% "akka-http-core" % "2.4.11.2",
+    "com.typesafe.akka" %% "akka-stream-testkit" % "2.4.11.2",
+    "com.typesafe.akka" %% "akka-http-spray-json" % akkaHttpV
+  )
+
   val jesBackendDependencies = refinedTypeDependenciesList
 
   val tesBackendDependencies = List(
     "io.spray" %% "spray-client" % sprayV
-  ) ++ sprayServerDependencies
+  ) ++ FixmeBackendDependencies
 
   val sparkBackendDependencies = List(
     "io.spray" %% "spray-client" % sprayV
-  ) ++ sprayServerDependencies
+  ) ++ FixmeBackendDependencies
 
   val engineDependencies = List(
     "commons-codec" % "commons-codec" % "1.10",
@@ -174,7 +179,7 @@ object Dependencies {
     "com.fasterxml.jackson.module" %% "jackson-module-scala" % "2.7.9",
     "io.swagger" % "swagger-parser" % "1.0.22" % Test,
     "org.yaml" % "snakeyaml" % "1.17" % Test
-  ) ++ sprayServerDependencies
+  ) ++ akkaHttpServerDependencies ++ sprayServerDependencies
 
   val rootDependencies = slf4jBindingDependencies
 }
