@@ -224,7 +224,7 @@ object MetadataBuilderActor {
 }
 
 class MetadataBuilderActor(serviceRegistryActor: ActorRef) extends LoggingFSM[MetadataBuilderActorState, Option[MetadataBuilderActorData]]
-  with DefaultJsonProtocol with WorkflowQueryPagination {
+  with DefaultJsonProtocol {
   import MetadataBuilderActor._
   import WorkflowJsonSupport._
 

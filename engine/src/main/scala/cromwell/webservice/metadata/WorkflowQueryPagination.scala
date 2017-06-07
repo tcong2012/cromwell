@@ -9,7 +9,7 @@ import cromwell.services.metadata.MetadataService.QueryMetadata
 /**
   * Attempts to add query parameters for pagination.
   *
-  * NOTE: This trait is effectively broken, as the returned links are not suitable for use by cromwell clients.
+  * NOTE: This is effectively broken, as the returned links are not suitable for use by cromwell clients.
   *
   * The trait discards the search parameters for GETs, for example it drops parameters such as "start" and "end". Also
   * generates links incompatible with POSTs, as the endpoints read parameters from the HTTP body during POST, __not__
@@ -21,15 +21,17 @@ import cromwell.services.metadata.MetadataService.QueryMetadata
   * The existing `CromwellApiServiceSpec` should be updated to verify the expected behavior for both GET and POST.
   *
   * Left behind for legacy reasons, but don't believe anyone has ever used these non-functional links.
+  *
+  * Note: As of 6/7/17 the above is confirmed by JG, but leaving it mostly as-is for now
   */
-trait WorkflowQueryPagination {
+object WorkflowQueryPagination {
 
-  protected def generatePaginationParams(page: Int, pageSize: Int): Query = {
+  private def generatePaginationParams(page: Int, pageSize: Int): Query = {
     Query(s"page=$page&pagesize=$pageSize")
   }
 
   //Generates link headers for pagination navigation https://tools.ietf.org/html/rfc5988#page-6
-  protected def generateLinkHeaders(uri: Uri, metadata: Option[QueryMetadata]): List[HttpHeader] = {
+  def generateLinkHeaders(uri: Uri, metadata: Option[QueryMetadata]): List[HttpHeader] = {
     //strip off the query params
     val baseUrl = uri.scheme + ":" + uri.authority + uri.path
     metadata match {
