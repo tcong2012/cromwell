@@ -4,7 +4,7 @@ import akka.actor.ActorRef
 import akka.http.scaladsl.server.Directives._
 
 import scala.concurrent.{ExecutionContext, Future}
-import akka.http.scaladsl.model.{Multipart, StatusCodes}
+import akka.http.scaladsl.model.{Multipart, StatusCodes, Uri}
 import akka.http.scaladsl.model.Multipart.BodyPart
 import akka.stream.ActorMaterializer
 import cromwell.engine.backend.BackendConfiguration
@@ -89,20 +89,19 @@ trait AkkaHttpService extends PerRequestCreator {
         }
       } ~
       path("workflows" / Segment / "query") { version =>
-        parameterSeq { parameters =>
-          get {
+        get {
+          parameterSeq { parameters =>
             extractUri { uri =>
-              val response = serviceRegistryActor.ask(WorkflowQuery(parameters)).mapTo[MetadataQueryResponse]
-
-              onComplete(response) {
-                case Success(w: WorkflowQuerySuccess) =>
-                  val headers = WorkflowQueryPagination.generateLinkHeaders(uri, w.meta)
-                  respondWithHeaders(headers) {
-                    complete(w.response)
-                  }
-                case Success(w: WorkflowQueryFailure) => complete((StatusCodes.BadRequest, APIResponse.fail(w.reason)))
-                case Failure(e) => complete((StatusCodes.BadRequest, APIResponse.fail(e)))
-              }
+              metadataQueryRequest(parameters, uri)
+            }
+          }
+        }
+      } ~
+      path("workflows" / Segment / "query") { version =>
+        post {
+          parameterSeq { parameters =>
+            extractUri { uri =>
+              metadataQueryRequest(parameters, uri)
             }
           }
         }
@@ -191,7 +190,21 @@ trait AkkaHttpService extends PerRequestCreator {
       case Success(r: BuiltMetadataResponse) => complete(r)
       case Success(r: FailedMetadataResponse) => complete((StatusCodes.InternalServerError, APIResponse.fail(r.reason)))
       case Failure(e: UnrecognizedWorkflowException) => complete((StatusCodes.NotFound, APIResponse.fail(e)))
-      case Failure(e) => complete((StatusCodes.BadRequest, APIResponse.fail(e)))
+      case Failure(e) => complete((StatusCodes.InternalServerError, APIResponse.fail(e)))
+    }
+  }
+
+  private def metadataQueryRequest(parameters: Seq[(String, String)], uri: Uri): Route = {
+    val response = serviceRegistryActor.ask(WorkflowQuery(parameters)).mapTo[MetadataQueryResponse]
+
+    onComplete(response) {
+      case Success(w: WorkflowQuerySuccess) =>
+        val headers = WorkflowQueryPagination.generateLinkHeaders(uri, w.meta)
+        respondWithHeaders(headers) {
+          complete(w.response)
+        }
+      case Success(w: WorkflowQueryFailure) => complete((StatusCodes.BadRequest, APIResponse.fail(w.reason)))
+      case Failure(e) => complete((StatusCodes.InternalServerError, APIResponse.fail(e)))
     }
   }
 }

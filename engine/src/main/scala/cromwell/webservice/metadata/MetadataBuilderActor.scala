@@ -3,7 +3,6 @@ package cromwell.webservice.metadata
 import java.time.OffsetDateTime
 
 import akka.actor.{ActorRef, LoggingFSM, Props}
-import akka.http.scaladsl.model.StatusCodes
 import cromwell.webservice.metadata.MetadataComponent._
 import cats.instances.list._
 import cats.syntax.foldable._
@@ -14,12 +13,12 @@ import cromwell.services.ServiceRegistryActor.ServiceRegistryFailure
 import cromwell.services.metadata.MetadataService._
 import cromwell.services.metadata._
 import cromwell.webservice.PerRequest.RequestComplete
-import cromwell.webservice.metadata.MetadataBuilderActor.{MetadataBuilderActorData, MetadataBuilderActorState}
+import cromwell.webservice.metadata.MetadataBuilderActor.{BuiltMetadataResponse, Idle, MetadataBuilderActorData, MetadataBuilderActorState, WaitingForMetadataService, WaitingForSubWorkflows}
 import cromwell.webservice.{APIResponse, PerRequestCreator, WorkflowJsonSupport}
 import org.slf4j.LoggerFactory
-import spray.httpx.SprayJsonSupport._
 import spray.json._
-
+import spray.httpx.SprayJsonSupport._
+import spray.http.StatusCodes
 import scala.collection.immutable.TreeMap
 import scala.language.postfixOps
 import scala.util.{Failure, Random, Success, Try}
@@ -223,7 +222,6 @@ object MetadataBuilderActor {
 
 class MetadataBuilderActor(serviceRegistryActor: ActorRef) extends LoggingFSM[MetadataBuilderActorState, Option[MetadataBuilderActorData]]
   with DefaultJsonProtocol {
-  import MetadataBuilderActor._
   import WorkflowJsonSupport._
 
   private var target: ActorRef = ActorRef.noSender
