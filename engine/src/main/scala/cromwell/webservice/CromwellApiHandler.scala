@@ -10,7 +10,6 @@ import cromwell.engine.workflow.WorkflowManagerActor
 import cromwell.engine.workflow.WorkflowManagerActor.WorkflowNotFoundException
 import cromwell.engine.workflow.workflowstore.{WorkflowStoreActor, WorkflowStoreEngineActor, WorkflowStoreSubmitActor}
 import cromwell.webservice.PerRequest.RequestComplete
-import cromwell.webservice.metadata.WorkflowQueryPagination
 import spray.http.{StatusCodes, Uri}
 import spray.httpx.SprayJsonSupport._
 
@@ -35,7 +34,7 @@ object CromwellApiHandler {
   case object ApiHandlerEngineStats extends ApiHandlerMessage
 }
 
-class CromwellApiHandler(requestHandlerActor: ActorRef) extends Actor with WorkflowQueryPagination {
+class CromwellApiHandler(requestHandlerActor: ActorRef) extends Actor {
   import CromwellApiHandler._
   import WorkflowJsonSupport._
 

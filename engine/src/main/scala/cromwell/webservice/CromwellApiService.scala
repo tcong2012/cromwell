@@ -59,7 +59,7 @@ trait CromwellApiService extends HttpService with PerRequestCreator {
 
   def handleQueryMetadataRequest(parameters: Seq[(String, String)]): Route = {
     requestContext =>
-      perRequest(requestContext, metadataBuilderProps, WorkflowQuery(requestContext.request.uri, parameters))
+      perRequest(requestContext, metadataBuilderProps, WorkflowQuery(parameters))
   }
 
   protected def failBadRequest(t: Throwable, statusCode: StatusCode = StatusCodes.BadRequest) = respondWithMediaType(`application/json`) {

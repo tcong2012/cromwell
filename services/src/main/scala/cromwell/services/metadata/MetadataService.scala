@@ -16,11 +16,11 @@ object MetadataService {
 
   final val MetadataServiceName = "MetadataService"
 
-  case class WorkflowQueryResult(id: String, name: Option[String], status: Option[String], start: Option[OffsetDateTime], end: Option[OffsetDateTime])
+  final case class WorkflowQueryResult(id: String, name: Option[String], status: Option[String], start: Option[OffsetDateTime], end: Option[OffsetDateTime])
 
-  case class WorkflowQueryResponse(results: Seq[WorkflowQueryResult])
+  final case class WorkflowQueryResponse(results: Seq[WorkflowQueryResult])
 
-  case class QueryMetadata(page: Option[Int], pageSize: Option[Int], totalRecords: Option[Int])
+  final case class QueryMetadata(page: Option[Int], pageSize: Option[Int], totalRecords: Option[Int])
 
   trait MetadataServiceMessage
   /**
@@ -68,7 +68,7 @@ object MetadataService {
     extends ReadAction
   case class GetMetadataQueryAction(key: MetadataQuery) extends ReadAction
   case class GetStatus(workflowId: WorkflowId) extends ReadAction
-  case class WorkflowQuery[A](uri: A, parameters: Seq[(String, String)]) extends ReadAction
+  case class WorkflowQuery(parameters: Seq[(String, String)]) extends ReadAction
   case class WorkflowOutputs(workflowId: WorkflowId) extends ReadAction
   case class GetLogs(workflowId: WorkflowId) extends ReadAction
   case object RefreshSummary extends MetadataServiceAction
@@ -96,10 +96,6 @@ object MetadataService {
   final case class StatusLookupResponse(workflowId: WorkflowId, status: WorkflowState) extends MetadataServiceResponse
   final case class StatusLookupFailed(workflowId: WorkflowId, reason: Throwable) extends MetadataServiceFailure
 
-  final case class WorkflowQuerySuccess[A](uri: A, response: WorkflowQueryResponse, meta: Option[QueryMetadata])
-    extends MetadataServiceResponse
-  final case class WorkflowQueryFailure(reason: Throwable) extends MetadataServiceFailure
-
   final case class WorkflowOutputsResponse(id: WorkflowId, outputs: Seq[MetadataEvent]) extends MetadataServiceResponse
   final case class WorkflowOutputsFailure(id: WorkflowId, reason: Throwable) extends MetadataServiceFailure
 
@@ -110,6 +106,10 @@ object MetadataService {
   case object RecognizedWorkflowId extends WorkflowValidationResponse
   case object UnrecognizedWorkflowId extends WorkflowValidationResponse
   final case class FailedToCheckWorkflowId(cause: Throwable) extends WorkflowValidationResponse
+
+  sealed abstract class MetadataQueryResponse extends MetadataServiceResponse
+  final case class WorkflowQuerySuccess(response: WorkflowQueryResponse, meta: Option[QueryMetadata]) extends MetadataQueryResponse
+  final case class WorkflowQueryFailure(reason: Throwable) extends MetadataQueryResponse
 
   def wdlValueToMetadataEvents(metadataKey: MetadataKey, wdlValue: WdlValue): Iterable[MetadataEvent] = wdlValue match {
     case WdlArray(_, valueSeq) =>

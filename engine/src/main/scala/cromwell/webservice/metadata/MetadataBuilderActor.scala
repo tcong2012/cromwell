@@ -3,7 +3,7 @@ package cromwell.webservice.metadata
 import java.time.OffsetDateTime
 
 import akka.actor.{ActorRef, LoggingFSM, Props}
-import akka.http.scaladsl.model.{HttpHeader, StatusCodes, Uri}
+import akka.http.scaladsl.model.StatusCodes
 import cromwell.webservice.metadata.MetadataComponent._
 import cats.instances.list._
 import cats.syntax.foldable._
@@ -13,8 +13,8 @@ import cromwell.core.{WorkflowId, WorkflowMetadataKeys, WorkflowState}
 import cromwell.services.ServiceRegistryActor.ServiceRegistryFailure
 import cromwell.services.metadata.MetadataService._
 import cromwell.services.metadata._
-import cromwell.webservice.PerRequest.{RequestComplete, RequestCompleteWithHeaders}
-import cromwell.webservice.metadata.MetadataBuilderActor.{Idle, MetadataBuilderActorData, MetadataBuilderActorState, WaitingForMetadataService, WaitingForSubWorkflows}
+import cromwell.webservice.PerRequest.RequestComplete
+import cromwell.webservice.metadata.MetadataBuilderActor.{MetadataBuilderActorData, MetadataBuilderActorState}
 import cromwell.webservice.{APIResponse, PerRequestCreator, WorkflowJsonSupport}
 import org.slf4j.LoggerFactory
 import spray.httpx.SprayJsonSupport._
@@ -27,9 +27,7 @@ import scala.util.{Failure, Random, Success, Try}
 
 object MetadataBuilderActor {
   sealed abstract class MetadataBuilderActorResponse
-  // FIXME: Bifurcate the metadata-y stuff from the query-y stuff
-  // FIXME: Actually the query stuff doesn't even touch this
-  case class BuiltMetadataResponse(response: JsObject, additionalHeaders: List[HttpHeader] = List.empty) extends MetadataBuilderActorResponse
+  case class BuiltMetadataResponse(response: JsObject) extends MetadataBuilderActorResponse
   case class FailedMetadataResponse(reason: Throwable) extends MetadataBuilderActorResponse
 
   sealed trait MetadataBuilderActorState
@@ -259,9 +257,6 @@ class MetadataBuilderActor(serviceRegistryActor: ActorRef) extends LoggingFSM[Me
       target ! BuiltMetadataResponse(workflowMetadataResponse(w, l, includeCallsIfEmpty = false, Map.empty))
       allDone
     case Event(MetadataLookupResponse(query, metadata), None) => processMetadataResponse(query, metadata)
-    case Event(WorkflowQuerySuccess(uri: Uri, response, metadata), _) =>
-      target ! BuiltMetadataResponse(response, generateLinkHeaders(uri, metadata)) // FIXME: How to handle headers?
-      allDone
 
       // FIXME: Untouched
 
@@ -269,11 +264,6 @@ class MetadataBuilderActor(serviceRegistryActor: ActorRef) extends LoggingFSM[Me
       val response = APIResponse.fail(new RuntimeException("Can't find metadata service"))
       context.parent ! RequestComplete((StatusCodes.InternalServerError, response))
       allDone
-
-    case Event(failure: WorkflowQueryFailure, _) => // FIXME
-      context.parent ! RequestComplete((StatusCodes.BadRequest, APIResponse.fail(failure.reason)))
-      allDone
-
 
     case Event(failure: MetadataServiceFailure, _) =>
       context.parent ! RequestComplete((StatusCodes.InternalServerError, APIResponse.error(failure.reason)))

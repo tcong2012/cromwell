@@ -15,7 +15,7 @@ import akka.pattern.ask
 import akka.util.Timeout
 import cromwell.engine.workflow.WorkflowManagerActor
 import cromwell.services.metadata.MetadataService._
-import cromwell.webservice.metadata.MetadataBuilderActor
+import cromwell.webservice.metadata.{MetadataBuilderActor, WorkflowQueryPagination}
 import cromwell.webservice.metadata.MetadataBuilderActor.{BuiltMetadataResponse, FailedMetadataResponse, MetadataBuilderActorResponse}
 import WorkflowJsonSupport._
 import akka.http.scaladsl.server.Route
@@ -75,24 +75,34 @@ trait AkkaHttpService extends PerRequestCreator {
       } ~
       path("workflows" / Segment / Segment / "status") { (version, possibleWorkflowId) =>
         get {
-          handleMetadataRequestWithWorkflowId(possibleWorkflowId, (w: WorkflowId) => GetStatus(w))
+          metadataBuilderRequest(possibleWorkflowId, (w: WorkflowId) => GetStatus(w))
         }
       } ~
       path("workflows" / Segment / Segment / "outputs") { (version, possibleWorkflowId) =>
         get {
-          handleMetadataRequestWithWorkflowId(possibleWorkflowId, (w: WorkflowId) => WorkflowOutputs(w))
+          metadataBuilderRequest(possibleWorkflowId, (w: WorkflowId) => WorkflowOutputs(w))
         }
       } ~
       path("workflows" / Segment / Segment / "logs") { (version, possibleWorkflowId) =>
         get {
-          handleMetadataRequestWithWorkflowId(possibleWorkflowId, (w: WorkflowId) => GetLogs(w))
+          metadataBuilderRequest(possibleWorkflowId, (w: WorkflowId) => GetLogs(w))
         }
       } ~
       path("workflows" / Segment / "query") { version =>
         parameterSeq { parameters =>
           get {
             extractUri { uri =>
-              handleMetadataRequest(WorkflowQuery(uri, parameters))
+              val response = serviceRegistryActor.ask(WorkflowQuery(parameters)).mapTo[MetadataQueryResponse]
+
+              onComplete(response) {
+                case Success(w: WorkflowQuerySuccess) =>
+                  val headers = WorkflowQueryPagination.generateLinkHeaders(uri, w.meta)
+                  respondWithHeaders(headers) {
+                    complete(w.response)
+                  }
+                case Success(w: WorkflowQueryFailure) => complete((StatusCodes.BadRequest, APIResponse.fail(w.reason)))
+                case Failure(e) => complete((StatusCodes.BadRequest, APIResponse.fail(e)))
+              }
             }
           }
         }
@@ -107,7 +117,7 @@ trait AkkaHttpService extends PerRequestCreator {
             (includeKeysOption, excludeKeysOption) match {
               case (Some(_), Some(_)) => complete((StatusCodes.BadRequest, APIResponse.fail(new IllegalArgumentException("includeKey and excludeKey may not be specified together"))))
               // FIXME: not sure why we're maintaining the options
-              case (_, _) => handleMetadataRequestWithWorkflowId(possibleWorkflowId, (w: WorkflowId) => GetSingleWorkflowMetadataAction(w, includeKeysOption, excludeKeysOption, expandSubWorkflows))
+              case (_, _) => metadataBuilderRequest(possibleWorkflowId, (w: WorkflowId) => GetSingleWorkflowMetadataAction(w, includeKeysOption, excludeKeysOption, expandSubWorkflows))
             }
           }
         }
@@ -172,25 +182,15 @@ trait AkkaHttpService extends PerRequestCreator {
     }
   }
 
-  // FIXME: Wire this into the next one
-  private def handleMetadataRequestWithWorkflowId(possibleWorkflowId: String, request: WorkflowId => ReadAction): Route = {
-    val route = validateWorkflowId(possibleWorkflowId) map { w => handleMetadataRequest(request(w)) }
-
-    onComplete(route) {
-      case Success(r) => r
-      case Failure(e) => complete((StatusCodes.NotFound, APIResponse.fail(e)))
-    }
-  }
-
-  private def handleMetadataRequest(message: ReadAction): Route = {
-    // metadataBuilderActor will kill itself
-    // FIXME - perhaps handle it here?
+  private def metadataBuilderRequest(possibleWorkflowId: String, request: WorkflowId => ReadAction): Route = {
     val metadataBuilderActor = actorRefFactory.actorOf(MetadataBuilderActor.props(serviceRegistryActor))
-    val response = metadataBuilderActor.ask(message).mapTo[MetadataBuilderActorResponse]
+
+    val response = validateWorkflowId(possibleWorkflowId) flatMap { w => metadataBuilderActor.ask(request(w)).mapTo[MetadataBuilderActorResponse] }
 
     onComplete(response) {
       case Success(r: BuiltMetadataResponse) => complete(r)
       case Success(r: FailedMetadataResponse) => complete((StatusCodes.InternalServerError, APIResponse.fail(r.reason)))
+      case Failure(e: UnrecognizedWorkflowException) => complete((StatusCodes.NotFound, APIResponse.fail(e)))
       case Failure(e) => complete((StatusCodes.BadRequest, APIResponse.fail(e)))
     }
   }
