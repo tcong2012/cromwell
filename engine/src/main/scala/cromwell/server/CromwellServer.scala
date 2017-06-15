@@ -2,9 +2,13 @@ package cromwell.server
 
 import akka.actor.{ActorContext, Props}
 import akka.http.scaladsl.Http
+import akka.http.scaladsl.server.Route
+import akka.http.scaladsl.server.Directives._
+
 import akka.stream.ActorMaterializer
 import akka.util.Timeout
-import cromwell.webservice.AkkaHttpService
+import cromwell.webservice.{AkkaHttpService, SwaggerService}
+import cromwell.webservice.WrappedRoute._
 import net.ceedubs.ficus.Ficus._
 
 import scala.concurrent.duration._
@@ -27,8 +31,10 @@ object CromwellServer {
   }
 }
 
-class CromwellServerActor(cromwellSystem: CromwellSystem)(override implicit val materializer: ActorMaterializer) extends CromwellRootActor with AkkaHttpService {
-  // FIXME: swagger!
+class CromwellServerActor(cromwellSystem: CromwellSystem)(override implicit val materializer: ActorMaterializer)
+  extends CromwellRootActor
+  with AkkaHttpService
+  with SwaggerService {
   implicit val actorSystem = context.system
   override implicit val ec = context.dispatcher
   override def actorRefFactory: ActorContext = context
@@ -41,12 +47,11 @@ class CromwellServerActor(cromwellSystem: CromwellSystem)(override implicit val 
   val port = webserviceConf.getInt("port")
 
   val routeUnwrapped: Boolean = cromwellSystem.conf.as[Option[Boolean]]("api.routeUnwrapped").getOrElse(false)
-//  val possibleRoutes: Route = workflowRoutes.wrapped("api", routeUnwrapped) ~ swaggerUiResourceRoute
-
+  val allRoutes: Route = routes.wrapped("api", routeUnwrapped) ~ swaggerUiResourceRoute
 
   // FIXME: Can I use that httpapp thing?
 
-  Http().bindAndHandle(routes, interface, port) onComplete {
+  Http().bindAndHandle(allRoutes, interface, port) onComplete {
     case Success(_) => actorSystem.log.info("Cromwell service started...")
     case Failure(regerts) =>
       /*
