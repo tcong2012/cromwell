@@ -5,6 +5,7 @@ import akka.http.scaladsl.Http
 import akka.stream.ActorMaterializer
 import akka.util.Timeout
 import cromwell.webservice.AkkaHttpService
+import net.ceedubs.ficus.Ficus._
 
 import scala.concurrent.duration._
 import scala.concurrent.{Await, Future}
@@ -38,6 +39,10 @@ class CromwellServerActor(cromwellSystem: CromwellSystem)(override implicit val 
   val webserviceConf = cromwellSystem.conf.getConfig("webservice")
   val interface = webserviceConf.getString("interface")
   val port = webserviceConf.getInt("port")
+
+  val routeUnwrapped: Boolean = cromwellSystem.conf.as[Option[Boolean]]("api.routeUnwrapped").getOrElse(false)
+//  val possibleRoutes: Route = workflowRoutes.wrapped("api", routeUnwrapped) ~ swaggerUiResourceRoute
+
 
   // FIXME: Can I use that httpapp thing?
 
