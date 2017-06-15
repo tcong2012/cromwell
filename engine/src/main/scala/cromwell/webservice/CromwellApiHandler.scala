@@ -13,6 +13,7 @@ import cromwell.webservice.PerRequest.RequestComplete
 import spray.http.{StatusCodes, Uri}
 import spray.httpx.SprayJsonSupport._
 
+// FIXME: This should go away completely
 
 object CromwellApiHandler {
   def props(requestHandlerActor: ActorRef): Props = {

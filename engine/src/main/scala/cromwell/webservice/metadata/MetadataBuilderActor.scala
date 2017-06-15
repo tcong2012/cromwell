@@ -13,12 +13,13 @@ import cromwell.services.ServiceRegistryActor.ServiceRegistryFailure
 import cromwell.services.metadata.MetadataService._
 import cromwell.services.metadata._
 import cromwell.webservice.PerRequest.RequestComplete
-import cromwell.webservice.metadata.MetadataBuilderActor.{BuiltMetadataResponse, Idle, MetadataBuilderActorData, MetadataBuilderActorState, WaitingForMetadataService, WaitingForSubWorkflows}
+import cromwell.webservice.metadata.MetadataBuilderActor.{BuiltMetadataResponse, FailedMetadataResponse, Idle, MetadataBuilderActorData, MetadataBuilderActorState, WaitingForMetadataService, WaitingForSubWorkflows}
 import cromwell.webservice.{APIResponse, PerRequestCreator, WorkflowJsonSupport}
 import org.slf4j.LoggerFactory
 import spray.json._
 import spray.httpx.SprayJsonSupport._
 import spray.http.StatusCodes
+
 import scala.collection.immutable.TreeMap
 import scala.language.postfixOps
 import scala.util.{Failure, Random, Success, Try}
@@ -255,20 +256,14 @@ class MetadataBuilderActor(serviceRegistryActor: ActorRef) extends LoggingFSM[Me
       target ! BuiltMetadataResponse(workflowMetadataResponse(w, l, includeCallsIfEmpty = false, Map.empty))
       allDone
     case Event(MetadataLookupResponse(query, metadata), None) => processMetadataResponse(query, metadata)
-
-      // FIXME: Untouched
-
     case Event(failure: ServiceRegistryFailure, _) =>
-      val response = APIResponse.fail(new RuntimeException("Can't find metadata service"))
-      context.parent ! RequestComplete((StatusCodes.InternalServerError, response))
+      target ! FailedMetadataResponse(new RuntimeException("Can't find metadata service"))
       allDone
-
     case Event(failure: MetadataServiceFailure, _) =>
-      context.parent ! RequestComplete((StatusCodes.InternalServerError, APIResponse.error(failure.reason)))
+      target ! FailedMetadataResponse(failure.reason)
       allDone
     case Event(unexpectedMessage, stateData) =>
-      val response = APIResponse.fail(new RuntimeException(s"MetadataBuilderActor $tag(WaitingForMetadataService, $stateData) got an unexpected message: $unexpectedMessage"))
-      context.parent ! RequestComplete((StatusCodes.InternalServerError, response))
+      target ! FailedMetadataResponse(new RuntimeException(s"MetadataBuilderActor $tag(WaitingForMetadataService, $stateData) got an unexpected message: $unexpectedMessage"))
       context stop self
       stay()
   }

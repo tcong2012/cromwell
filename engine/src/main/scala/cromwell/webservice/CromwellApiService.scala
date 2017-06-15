@@ -2,31 +2,19 @@ package cromwell.webservice
 
 import akka.actor._
 import cats.data.NonEmptyList
-import cats.data.Validated.{Invalid, Valid}
-import cats.syntax.cartesian._
-import cats.syntax.validated._
 import com.typesafe.config.{Config, ConfigFactory}
 import cromwell.core._
 import cromwell.engine.backend.BackendConfiguration
 import cromwell.services.metadata.MetadataService._
 import cromwell.webservice.WorkflowJsonSupport._
 import cromwell.webservice.metadata.MetadataBuilderActor
-import lenthall.validation.ErrorOr.ErrorOr
-import org.slf4j.LoggerFactory
 import spray.http.MediaTypes._
 import spray.http._
 import spray.httpx.SprayJsonSupport._
 import spray.json._
 import spray.routing._
-import wdl4s.{WdlJson, WdlSource}
 
 import scala.util.{Failure, Success, Try}
-
-trait SwaggerService extends SwaggerUiResourceHttpService {
-  override def swaggerServiceName = "cromwell"
-
-  override def swaggerUiVersion = "2.1.1"
-}
 
 trait CromwellApiService extends HttpService with PerRequestCreator {
   def workflowManagerActor: ActorRef
@@ -66,7 +54,7 @@ trait CromwellApiService extends HttpService with PerRequestCreator {
     complete((statusCode, APIResponse.fail(t).toJson.prettyPrint))
   }
 
-  val workflowRoutes = queryRoute ~ queryPostRoute ~ workflowOutputsRoute ~ submitRoute ~ submitBatchRoute ~
+  val workflowRoutes = queryRoute ~ queryPostRoute ~ workflowOutputsRoute ~ //submitRoute ~ submitBatchRoute ~
     workflowLogsRoute ~ abortRoute ~ metadataRoute ~ timingRoute ~ statusRoute ~ backendRoute ~ statsRoute ~ versionRoute
 
   protected def withRecognizedWorkflowId(possibleWorkflowId: String)(recognizedWorkflowId: WorkflowId => Route): Route = {
@@ -134,152 +122,152 @@ trait CromwellApiService extends HttpService with PerRequestCreator {
       }
     }
 
-  case class PartialWorkflowSources
-  (
-    workflowSource: Option[WdlSource],
-    workflowType: Option[WorkflowType],
-    workflowTypeVersion: Option[WorkflowTypeVersion],
-    workflowInputs: Vector[WdlJson],
-    workflowInputsAux: Map[Int, WdlJson],
-    workflowOptions: Option[WorkflowOptionsJson],
-    customLabels: Option[WdlJson],
-    zippedImports: Option[Array[Byte]])
+//  case class PartialWorkflowSources
+//  (
+//    workflowSource: Option[WdlSource],
+//    workflowType: Option[WorkflowType],
+//    workflowTypeVersion: Option[WorkflowTypeVersion],
+//    workflowInputs: Vector[WdlJson],
+//    workflowInputsAux: Map[Int, WdlJson],
+//    workflowOptions: Option[WorkflowOptionsJson],
+//    customLabels: Option[WdlJson],
+//    zippedImports: Option[Array[Byte]])
+//
+//  object PartialWorkflowSources {
+//
+//    val log = LoggerFactory.getLogger(classOf[PartialWorkflowSources])
+//
+//    def empty = PartialWorkflowSources(
+//      workflowSource = None,
+//      // TODO do not hardcode, especially not out here at the boundary layer good gravy
+//      workflowType = Option("WDL"),
+//      workflowTypeVersion = None,
+//      workflowInputs = Vector.empty,
+//      workflowInputsAux = Map.empty,
+//      workflowOptions = None,
+//      customLabels = None,
+//      zippedImports = None
+//    )
+//
+//    private def workflowInputs(bodyPart: BodyPart): Vector[WdlJson] = {
+//      import spray.json._
+//      bodyPart.entity.data.asString.parseJson match {
+//        case JsArray(Seq(x, xs@_*)) => (Vector(x) ++ xs).map(_.compactPrint)
+//        case JsArray(_) => Vector.empty
+//        case v: JsValue => Vector(v.compactPrint)
+//      }
+//    }
+//
+//    def partialSourcesToSourceCollections(partialSources: ErrorOr[PartialWorkflowSources], allowNoInputs: Boolean): ErrorOr[Seq[WorkflowSourceFilesCollection]] = {
+//
+//      def validateInputs(pws: PartialWorkflowSources): ErrorOr[Seq[WdlJson]] =
+//        (pws.workflowInputs.isEmpty, allowNoInputs) match {
+//          case (true, true) => Vector("{}").validNel
+//          case (true, false) => "No inputs were provided".invalidNel
+//          case _ =>
+//            val sortedInputAuxes = pws.workflowInputsAux.toSeq.sortBy { case (index, _) => index } map { case(_, inputJson) => Option(inputJson) }
+//            (pws.workflowInputs map { workflowInputSet: WdlJson => mergeMaps(Seq(Option(workflowInputSet)) ++ sortedInputAuxes).toString }).validNel
+//      }
+//
+//      def validateOptions(options: Option[WorkflowOptionsJson]): ErrorOr[WorkflowOptions] =
+//        WorkflowOptions.fromJsonString(options.getOrElse("{}")).tryToErrorOr leftMap { _ map { i => s"Invalid workflow options provided: $i" } }
+//
+//      def validateWorkflowSources(partialSource: PartialWorkflowSources): ErrorOr[WdlJson] = partialSource.workflowSource match {
+//        case Some(src) => src.validNel
+//        case _ => s"Incomplete workflow submission: $partialSource".invalidNel
+//      }
+//
+//      partialSources match {
+//        case Valid(partialSource) =>
+//          (validateWorkflowSources(partialSource) |@| validateInputs(partialSource) |@| validateOptions(partialSource.workflowOptions)) map {
+//            case (wfSource, wfInputs, wfOptions) =>
+//              wfInputs.map(inputsJson => WorkflowSourceFilesCollection(
+//                workflowSource = wfSource,
+//                workflowType = partialSource.workflowType,
+//                workflowTypeVersion = partialSource.workflowTypeVersion,
+//                inputsJson = inputsJson,
+//                workflowOptionsJson = wfOptions.asPrettyJson,
+//                labelsJson = partialSource.customLabels.getOrElse("{}"),
+//                importsFile = partialSource.zippedImports))
+//          }
+//        case Invalid(err) => err.invalid
+//      }
+//    }
+//
+//    def deprecationWarning(out: String, in: String): Unit = {
+//      val warning =
+//        s"""
+//           |The '$out' parameter name has been deprecated in favor of '$in'.
+//           |Support for '$out' will be removed from future versions of Cromwell.
+//           |Please switch to using '$in' in future submissions.
+//         """.stripMargin
+//      log.warn(warning)
+//    }
+//
+//    def fromSubmitRoute(formData: MultipartFormData, allowNoInputs: Boolean): Try[Seq[WorkflowSourceFilesCollection]] = {
+//      val partialSources = Try(formData.fields.foldLeft(PartialWorkflowSources.empty) { (partialSources: PartialWorkflowSources, bodyPart: BodyPart) =>
+//        val name = bodyPart.name
+//        lazy val data = bodyPart.entity.data
+//        if (name.contains("wdlSource") || name.contains("workflowSource")) {
+//          if (name.contains("wdlSource")) deprecationWarning(out = "wdlSource", in = "workflowSource")
+//          partialSources.copy(workflowSource = Option(data.asString))
+//        } else if (name.contains("workflowType")) {
+//          partialSources.copy(workflowType = Option(data.asString))
+//        } else if (name.contains("workflowTypeVersion")) {
+//          partialSources.copy(workflowTypeVersion = Option(data.asString))
+//        } else if (name.contains("workflowInputs")) {
+//          partialSources.copy(workflowInputs = workflowInputs(bodyPart))
+//        } else if (name.forall(_.startsWith("workflowInputs_"))) {
+//          val index = name.get.stripPrefix("workflowInputs_").toInt
+//          partialSources.copy(workflowInputsAux = partialSources.workflowInputsAux + (index -> data.asString))
+//        } else if (name.contains("workflowOptions")) {
+//          partialSources.copy(workflowOptions = Option(data.asString))
+//        } else if (name.contains("wdlDependencies") || name.contains("workflowDependencies")) {
+//          if (name.contains("wdlDependencies")) deprecationWarning(out = "wdlDependencies", in = "workflowDependencies")
+//          partialSources.copy(zippedImports = Option(data.toByteArray))
+//        } else if (name.contains("customLabels")) {
+//          partialSources.copy(customLabels = Option(data.asString))
+//        } else {
+//          throw new IllegalArgumentException(s"Unexpected body part name: ${name.getOrElse("None")}")
+//        }
+//      })
+//      partialSourcesToSourceCollections(partialSources.tryToErrorOr, allowNoInputs).errorOrToTry
+//    }
+//  }
 
-  object PartialWorkflowSources {
-
-    val log = LoggerFactory.getLogger(classOf[PartialWorkflowSources])
-
-    def empty = PartialWorkflowSources(
-      workflowSource = None,
-      // TODO do not hardcode, especially not out here at the boundary layer good gravy
-      workflowType = Option("WDL"),
-      workflowTypeVersion = None,
-      workflowInputs = Vector.empty,
-      workflowInputsAux = Map.empty,
-      workflowOptions = None,
-      customLabels = None,
-      zippedImports = None
-    )
-
-    private def workflowInputs(bodyPart: BodyPart): Vector[WdlJson] = {
-      import spray.json._
-      bodyPart.entity.data.asString.parseJson match {
-        case JsArray(Seq(x, xs@_*)) => (Vector(x) ++ xs).map(_.compactPrint)
-        case JsArray(_) => Vector.empty
-        case v: JsValue => Vector(v.compactPrint)
-      }
-    }
-
-    def partialSourcesToSourceCollections(partialSources: ErrorOr[PartialWorkflowSources], allowNoInputs: Boolean): ErrorOr[Seq[WorkflowSourceFilesCollection]] = {
-
-      def validateInputs(pws: PartialWorkflowSources): ErrorOr[Seq[WdlJson]] =
-        (pws.workflowInputs.isEmpty, allowNoInputs) match {
-          case (true, true) => Vector("{}").validNel
-          case (true, false) => "No inputs were provided".invalidNel
-          case _ =>
-            val sortedInputAuxes = pws.workflowInputsAux.toSeq.sortBy { case (index, _) => index } map { case(_, inputJson) => Option(inputJson) }
-            (pws.workflowInputs map { workflowInputSet: WdlJson => mergeMaps(Seq(Option(workflowInputSet)) ++ sortedInputAuxes).toString }).validNel
-      }
-
-      def validateOptions(options: Option[WorkflowOptionsJson]): ErrorOr[WorkflowOptions] =
-        WorkflowOptions.fromJsonString(options.getOrElse("{}")).tryToErrorOr leftMap { _ map { i => s"Invalid workflow options provided: $i" } }
-
-      def validateWorkflowSources(partialSource: PartialWorkflowSources): ErrorOr[WdlJson] = partialSource.workflowSource match {
-        case Some(src) => src.validNel
-        case _ => s"Incomplete workflow submission: $partialSource".invalidNel
-      }
-
-      partialSources match {
-        case Valid(partialSource) =>
-          (validateWorkflowSources(partialSource) |@| validateInputs(partialSource) |@| validateOptions(partialSource.workflowOptions)) map {
-            case (wfSource, wfInputs, wfOptions) =>
-              wfInputs.map(inputsJson => WorkflowSourceFilesCollection(
-                workflowSource = wfSource,
-                workflowType = partialSource.workflowType,
-                workflowTypeVersion = partialSource.workflowTypeVersion,
-                inputsJson = inputsJson,
-                workflowOptionsJson = wfOptions.asPrettyJson,
-                labelsJson = partialSource.customLabels.getOrElse("{}"),
-                importsFile = partialSource.zippedImports))
-          }
-        case Invalid(err) => err.invalid
-      }
-    }
-
-    def deprecationWarning(out: String, in: String): Unit = {
-      val warning =
-        s"""
-           |The '$out' parameter name has been deprecated in favor of '$in'.
-           |Support for '$out' will be removed from future versions of Cromwell.
-           |Please switch to using '$in' in future submissions.
-         """.stripMargin
-      log.warn(warning)
-    }
-
-    def fromSubmitRoute(formData: MultipartFormData, allowNoInputs: Boolean): Try[Seq[WorkflowSourceFilesCollection]] = {
-      val partialSources = Try(formData.fields.foldLeft(PartialWorkflowSources.empty) { (partialSources: PartialWorkflowSources, bodyPart: BodyPart) =>
-        val name = bodyPart.name
-        lazy val data = bodyPart.entity.data
-        if (name.contains("wdlSource") || name.contains("workflowSource")) {
-          if (name.contains("wdlSource")) deprecationWarning(out = "wdlSource", in = "workflowSource")
-          partialSources.copy(workflowSource = Option(data.asString))
-        } else if (name.contains("workflowType")) {
-          partialSources.copy(workflowType = Option(data.asString))
-        } else if (name.contains("workflowTypeVersion")) {
-          partialSources.copy(workflowTypeVersion = Option(data.asString))
-        } else if (name.contains("workflowInputs")) {
-          partialSources.copy(workflowInputs = workflowInputs(bodyPart))
-        } else if (name.forall(_.startsWith("workflowInputs_"))) {
-          val index = name.get.stripPrefix("workflowInputs_").toInt
-          partialSources.copy(workflowInputsAux = partialSources.workflowInputsAux + (index -> data.asString))
-        } else if (name.contains("workflowOptions")) {
-          partialSources.copy(workflowOptions = Option(data.asString))
-        } else if (name.contains("wdlDependencies") || name.contains("workflowDependencies")) {
-          if (name.contains("wdlDependencies")) deprecationWarning(out = "wdlDependencies", in = "workflowDependencies")
-          partialSources.copy(zippedImports = Option(data.toByteArray))
-        } else if (name.contains("customLabels")) {
-          partialSources.copy(customLabels = Option(data.asString))
-        } else {
-          throw new IllegalArgumentException(s"Unexpected body part name: ${name.getOrElse("None")}")
-        }
-      })
-      partialSourcesToSourceCollections(partialSources.tryToErrorOr, allowNoInputs).errorOrToTry
-    }
-  }
-
-  def submitRoute =
-    path("workflows" / Segment) { version =>
-      post {
-        entity(as[MultipartFormData]) { formData =>
-          PartialWorkflowSources.fromSubmitRoute(formData, allowNoInputs = true) match {
-            case Success(workflowSourceFiles) if workflowSourceFiles.size == 1 =>
-              requestContext => {
-                perRequest(requestContext, CromwellApiHandler.props(workflowStoreActor), CromwellApiHandler.ApiHandlerWorkflowSubmit(workflowSourceFiles.head))
-              }
-            case Success(workflowSourceFiles) =>
-              failBadRequest(new IllegalArgumentException("To submit more than one workflow at a time, use the batch endpoint."))
-            case Failure(t) =>
-              failBadRequest(t)
-          }
-        }
-      }
-    }
-
-  def submitBatchRoute =
-    path("workflows" / Segment / "batch") { version =>
-      post {
-        entity(as[MultipartFormData]) { formData =>
-          PartialWorkflowSources.fromSubmitRoute(formData, allowNoInputs = false) match {
-            case Success(workflowSourceFiles) =>
-              requestContext => {
-                perRequest(requestContext, CromwellApiHandler.props(workflowStoreActor), CromwellApiHandler.ApiHandlerWorkflowSubmitBatch(NonEmptyList.fromListUnsafe(workflowSourceFiles.toList)))
-              }
-            case Failure(t) =>
-              failBadRequest(t)
-          }
-        }
-      }
-    }
+//  def submitRoute =
+//    path("workflows" / Segment) { version =>
+//      post {
+//        entity(as[MultipartFormData]) { formData =>
+//          PartialWorkflowSources.fromSubmitRoute(formData, allowNoInputs = true) match {
+//            case Success(workflowSourceFiles) if workflowSourceFiles.size == 1 =>
+//              requestContext => {
+//                perRequest(requestContext, CromwellApiHandler.props(workflowStoreActor), CromwellApiHandler.ApiHandlerWorkflowSubmit(workflowSourceFiles.head))
+//              }
+//            case Success(workflowSourceFiles) =>
+//              failBadRequest(new IllegalArgumentException("To submit more than one workflow at a time, use the batch endpoint."))
+//            case Failure(t) =>
+//              failBadRequest(t)
+//          }
+//        }
+//      }
+//    }
+//
+//  def submitBatchRoute =
+//    path("workflows" / Segment / "batch") { version =>
+//      post {
+//        entity(as[MultipartFormData]) { formData =>
+//          PartialWorkflowSources.fromSubmitRoute(formData, allowNoInputs = false) match {
+//            case Success(workflowSourceFiles) =>
+//              requestContext => {
+//                perRequest(requestContext, CromwellApiHandler.props(workflowStoreActor), CromwellApiHandler.ApiHandlerWorkflowSubmitBatch(NonEmptyList.fromListUnsafe(workflowSourceFiles.toList)))
+//              }
+//            case Failure(t) =>
+//              failBadRequest(t)
+//          }
+//        }
+//      }
+//    }
 
   def workflowOutputsRoute =
     path("workflows" / Segment / Segment / "outputs") { (version, possibleWorkflowId) =>

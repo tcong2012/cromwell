@@ -14,6 +14,8 @@ import spray.routing.RequestContext
 import scala.concurrent.duration._
 import scala.language.postfixOps
 
+// FIXME: This should go away completely
+
 /**
  * This actor controls the lifecycle of a request. It is responsible for forwarding the initial message
  * to a target handling actor. This actor waits for the target actor to signal completion (via a message),
