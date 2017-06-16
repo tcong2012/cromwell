@@ -7,19 +7,22 @@ import com.typesafe.config.ConfigFactory
 object CommandLineParser extends App {
 
   sealed trait Command
+
   case object Run extends Command
+
   case object Server extends Command
 
   case class Config(command: Option[Command] = None,
                     workflowSource: Option[File] = None,
                     workflowInputs: Option[File] = None,
                     workflowOptions: Option[File] = None,
-                    workflowType: Option[String] = None, // ADT this, somehow.
-                    workflowTypeVersion: Option[String] = None, // maybe ADT this
+                    workflowType: Option[String] = Option("WDL"), // ADT this, somehow.
+                    workflowTypeVersion: Option[String] = Option("v2.0-draft"), // maybe ADT this
                     labels: Option[File] = None,
                     imports: Option[File] = None,
                     metadataOutputPath: Option[File] = None
                    )
+
   lazy val cromwellVersion = ConfigFactory.load("cromwell-version.conf").getConfig("version").getString("cromwell")
 
   // There are subcommands here for `run` and `server` (and maybe `version`?).  `server` doesn't take any arguments.
@@ -44,25 +47,36 @@ object CommandLineParser extends App {
     cmd("server").action((_, c) => c.copy(command = Option(Server))).text(
       "Starts a web server on port 8000.  See the web server documentation for more details about the API endpoints.")
 
-    cmd("run").action((_, c) => c.copy(command = Option(Run))).
-      text("Run a single workflow.").
+    cmd("run").
+      action((_, c) => c.copy(command = Option(Run))).
+      text("Run the workflow locally and print out the outputs in JSON format.").
       children(
-        opt[File]('w', "workflow-descriptor").text("Workflow source file").action((f, c) =>
-          c.copy(workflowSource = Option(f))).required(),
-        opt[File]('i', "workflow-inputs").text("Workflow inputs file").action((f, c) =>
-          c.copy(workflowInputs = Option(f))),
-        opt[File]('o', "workflow-options").text("Workflow options file").action((f, c) =>
+        opt[File]('w', "workflow-descriptor").text("Workflow source file.").
+          action((f, c) =>
+            c.copy(workflowSource = Option(f))).required(),
+        opt[File]('i', "workflow-inputs").text("Workflow inputs file.").
+          action((f, c) =>
+            c.copy(workflowInputs = Option(f))),
+        opt[File]('o', "workflow-options").text("Workflow options file.").
+          action((f, c) =>
             c.copy(workflowOptions = Option(f))),
-        opt[String]('t', "workflow-type").text("Workflow type").action((s, c) =>
-          c.copy(workflowType = Option(s))),
-        opt[String]('v', "workflow-type-version").text("Workflow type version").action((s, c) =>
-          c.copy(workflowTypeVersion = Option(s))),
-        opt[File]('l', "labels").text("Labels file").action((f, c) =>
-          c.copy(labels = Option(f))),
-        opt[File]('p', "imports").text("Imports file").action((f, c) =>
-          c.copy(imports = Option(f))),
-        opt[File]('m', "metadata-output-path").text("Metadata output path").action((f, c) =>
-          c.copy(metadataOutputPath = Option(f)))
+        opt[String]('t', "workflow-type").text("Workflow type.").
+          action((s, c) =>
+            c.copy(workflowType = Option(s))),
+        opt[String]('v', "workflow-type-version").text("Workflow type version.").
+          action((s, c) =>
+            c.copy(workflowTypeVersion = Option(s))),
+        opt[File]('l', "labels").text("Labels file.").
+          action((f, c) =>
+            c.copy(labels = Option(f))),
+        opt[File]('p', "imports").text(
+          "A directory to search for WDL file imports, required if the primary workflow imports workflows that are outside of the root directory of the Cromwell project.").
+          action((f, c) =>
+            c.copy(imports = Option(f))),
+        opt[File]('m', "metadata-output-path").text(
+          "An optional file path to output metadata.").
+          action((f, c) =>
+            c.copy(metadataOutputPath = Option(f)))
       )
   }
 
@@ -70,6 +84,11 @@ object CommandLineParser extends App {
   parser.parse(args, Config()) match {
     case Some(config) =>
       println("you have a good argument")
+      config.command match {
+        case Some(Run) =>
+        case Some(Server) =>
+        case None => // should be unpossible
+      }
 
     case None =>
       println("seriously wtf")
