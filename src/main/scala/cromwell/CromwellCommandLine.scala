@@ -1,5 +1,7 @@
 package cromwell
 
+import java.io.File
+
 import cats.data.Validated._
 import cats.syntax.cartesian._
 import cats.syntax.validated._
@@ -10,12 +12,30 @@ import lenthall.validation.ErrorOr._
 import org.slf4j.LoggerFactory
 
 import scala.util.{Failure, Success, Try}
+import scopt.OptionParser
 
 sealed abstract class CromwellCommandLine
 case object UsageAndExit extends CromwellCommandLine
 case object RunServer extends CromwellCommandLine
 case object VersionAndExit extends CromwellCommandLine
 
+// There are subcommands here for `run` and `server`.  `server` doesn't take any arguments.
+
+// Cross check all these parameter names with WES so we're not needlessly GA4GH hostile.
+
+// run --workflow-descriptor | --source <workflow source file>
+//    [--workflow-params | --inputs <inputs> (default none, but seriously uninteresting without this)]
+//    [--key-values | --options <options> (default none)]
+//    [--labels <labels> (default none)]
+//    [--imports <workflow import bundle> (default none)[
+//    [--workflow-type <workflow type> (default "WDL")]
+//    [--workflow-type-version <workflow type version> (default "haha version whats that")]
+//    [--metadata-output-path <metadata output path> (default none)]
+
+
+case class CommandLine(source: File,
+                       inputs: Option[File]
+                      )
 object CromwellCommandLine {
   def apply(args: Seq[String]): CromwellCommandLine = {
     args.headOption match {
@@ -34,7 +54,7 @@ case class SingleRunPathParameters(wdlPath: Path, inputsPath: Option[Path], opti
     inputsPath foreach { i => log.info(s"  Inputs: $i") }
     optionsPath foreach { o => log.info(s"  Workflow Options: $o") }
     metadataPath foreach { m => log.info(s"  Workflow Metadata Output: $m") }
-    importPath foreach { i => log.info(s"  WDL import bundle: $i") }
+    importPath foreach { i => log.info(s"  Workflow import bundle: $i") }
     labelsPath foreach { o => log.info(s"  Custom labels: $o") }
   }
 }
@@ -55,13 +75,13 @@ object RunSingle {
       labelsPath = argPath(args, 5, None)
     )
 
-    val wdl = readContent("WDL file", pathParameters.wdlPath)
-    val inputsJson = readJson("Inputs", pathParameters.inputsPath)
-    val optionsJson = readJson("Workflow Options", pathParameters.optionsPath)
+    val workflowSource = readContent("Workflow source", pathParameters.wdlPath)
+    val inputsJson = readJson("Workflow inputs", pathParameters.inputsPath)
+    val optionsJson = readJson("Workflow options", pathParameters.optionsPath)
     val labelsJson = readJson("Labels", pathParameters.labelsPath)
 
     val sourceFileCollection = pathParameters.importPath match {
-      case Some(p) => (wdl |@| inputsJson |@| optionsJson |@| labelsJson) map { (w, i, o, l) =>
+      case Some(p) => (workflowSource |@| inputsJson |@| optionsJson |@| labelsJson) map { (w, i, o, l) =>
         WorkflowSourceFilesWithDependenciesZip.apply(
           workflowSource = w,
           workflowType = Option("WDL"),
@@ -71,7 +91,7 @@ object RunSingle {
           labelsJson = l,
           importsZip = p.loadBytes)
       }
-      case None => (wdl |@| inputsJson |@| optionsJson |@| labelsJson) map { (w, i, o, l) =>
+      case None => (workflowSource |@| inputsJson |@| optionsJson |@| labelsJson) map { (w, i, o, l) =>
         WorkflowSourceFilesWithoutImports.apply(
           workflowSource = w,
           workflowType = Option("WDL"),
