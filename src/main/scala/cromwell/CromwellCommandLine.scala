@@ -12,30 +12,27 @@ import lenthall.validation.ErrorOr._
 import org.slf4j.LoggerFactory
 
 import scala.util.{Failure, Success, Try}
-import scopt.OptionParser
 
 sealed abstract class CromwellCommandLine
 case object UsageAndExit extends CromwellCommandLine
 case object RunServer extends CromwellCommandLine
 case object VersionAndExit extends CromwellCommandLine
 
-// There are subcommands here for `run` and `server`.  `server` doesn't take any arguments.
+// There are subcommands here for `run` and `server` (and maybe `version`?).  `server` doesn't take any arguments.
 
 // Cross check all these parameter names with WES so we're not needlessly GA4GH hostile.
 
-// run --workflow-descriptor | --source <workflow source file>
-//    [--workflow-params | --inputs <inputs> (default none, but seriously uninteresting without this)]
-//    [--key-values | --options <options> (default none)]
-//    [--labels <labels> (default none)]
-//    [--imports <workflow import bundle> (default none)[
+// run --workflow-descriptor <workflow source file>
+//    [--workflow-params <inputs> (default none, but seriously uninteresting without this)]
+//    [--key-values (default none)]
 //    [--workflow-type <workflow type> (default "WDL")]
 //    [--workflow-type-version <workflow type version> (default "haha version whats that")]
+//    [--labels <labels> (default none)]
+//    [--imports <workflow import bundle> (default none)[
 //    [--metadata-output-path <metadata output path> (default none)]
 
+case class CommandLine(source: File, inputs: Option[File])
 
-case class CommandLine(source: File,
-                       inputs: Option[File]
-                      )
 object CromwellCommandLine {
   def apply(args: Seq[String]): CromwellCommandLine = {
     args.headOption match {
