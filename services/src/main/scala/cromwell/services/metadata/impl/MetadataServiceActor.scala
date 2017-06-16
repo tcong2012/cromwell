@@ -76,23 +76,6 @@ case class MetadataServiceActor(serviceConfig: Config, globalConfig: Config)
       case Failure(e) => sender ! FailedToCheckWorkflowId(new RuntimeException(s"Failed lookup attempt for workflow ID $possibleWorkflowId", e))
     }
   }
-//  private def validateWorkflowId(validation: ValidateWorkflowIdAndExecute): Unit = {
-//    val possibleWorkflowId = validation.possibleWorkflowId
-//    val callback = validation.validationCallback
-//
-//    Try(UUID.fromString(possibleWorkflowId)) match {
-//      case Failure(t) => callback.onMalformed(possibleWorkflowId)
-//      case Success(uuid) =>
-//        workflowExistsWithId(possibleWorkflowId) onComplete {
-//          case Success(true) =>
-//            callback.onRecognized(WorkflowId(uuid))
-//          case Success(false) =>
-//            callback.onUnrecognized(possibleWorkflowId)
-//          case Failure(t) =>
-//            callback.onFailure(possibleWorkflowId, t)
-//        }
-//    }
-//  }
 
   def receive = {
     case action@PutMetadataAction(events) => writeActor forward action

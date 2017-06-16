@@ -29,6 +29,7 @@ import scala.util.{Failure, Success, Try}
 
 // FIXME: rename once the cutover happens
 trait AkkaHttpService {
+  // FIXME: check HTTP codes both before/after
   import cromwell.webservice.AkkaHttpService._
 
   implicit def actorRefFactory: ActorRefFactory
@@ -43,10 +44,10 @@ trait AkkaHttpService {
   val duration = 5.seconds
   implicit val timeout: Timeout = duration
 
-  val backendResponse = BackendResponse(BackendConfiguration.AllBackendEntries.map(_.name).sorted, BackendConfiguration.DefaultBackendEntry.name)
+  private val backendResponse = BackendResponse(BackendConfiguration.AllBackendEntries.map(_.name).sorted, BackendConfiguration.DefaultBackendEntry.name)
 
   // FIXME: This is missing the 'api' stuff
-  // FIXME: Missing bulk submit and thib's new call cache stuff
+  // FIXME: Missing thib's new call cache stuff and ruchi's label stuff
   val routes =
     path("workflows" / Segment / "backends") { version =>
       get { complete(backendResponse) }
@@ -131,28 +132,39 @@ trait AkkaHttpService {
     } ~
     path("workflows" / Segment) { version =>
       post {
-        entity(as[Multipart.FormData]) { shite =>
-          val allParts: Future[Map[String, ByteString]] = shite.parts.mapAsync[(String, ByteString)](1) {
-            case b: BodyPart => b.toStrict(duration).map(strict => b.name -> strict.entity.data)
-          }.runFold(Map.empty[String, ByteString])((map, tuple) => map + tuple)
-
-          // FIXME: make this less hokey
-          onComplete(allParts) {
-            case Success(files) =>
-              PartialWorkflowSources.fromSubmitRoute(files, allowNoInputs = true) match {
-                case Success(workflowSourceFiles) if workflowSourceFiles.size == 1 =>
-                   onComplete(workflowStoreActor.ask(WorkflowStoreActor.SubmitWorkflow(workflowSourceFiles.head)).mapTo[WorkflowStoreSubmitActor.WorkflowSubmittedToStore]) {
-                    case Success(w) => complete((StatusCodes.Created, WorkflowSubmitResponse(w.workflowId.toString, WorkflowSubmitted.toString)))
-                    case Failure(e) => failInternalServerError(e)
-                  }
-                case Success(workflowSourceFiles) => failBadRequest(new IllegalArgumentException("To submit more than one workflow at a time, use the batch endpoint."))
-                case Failure(t) => failBadRequest(t)
-              }
-            case Failure(e) => failInternalServerError(e)
-          }
+        entity(as[Multipart.FormData]) { formData =>
+          submitRequest(formData, true)
         }
       }
-    } // FIXME: Batch submit route
+    } ~
+  path("workflows" / Segment / "batch") { version =>
+    post {
+      entity(as[Multipart.FormData]) { formData =>
+        submitRequest(formData, false)
+      }
+    }
+  }
+
+  private def submitRequest(formData: Multipart.FormData, isBatch: Boolean): Route = {
+    val allParts: Future[Map[String, ByteString]] = formData.parts.mapAsync[(String, ByteString)](1) {
+      case b: BodyPart => b.toStrict(duration).map(strict => b.name -> strict.entity.data)
+    }.runFold(Map.empty[String, ByteString])((map, tuple) => map + tuple)
+
+    // FIXME: make this less hokey
+    onComplete(allParts) {
+      case Success(formData) =>
+        PartialWorkflowSources.fromSubmitRoute(formData, allowNoInputs = isBatch) match {
+          case Success(workflowSourceFiles) if workflowSourceFiles.size == 1 =>
+            onComplete(workflowStoreActor.ask(WorkflowStoreActor.SubmitWorkflow(workflowSourceFiles.head)).mapTo[WorkflowStoreSubmitActor.WorkflowSubmittedToStore]) {
+              case Success(w) => complete((StatusCodes.Created, WorkflowSubmitResponse(w.workflowId.toString, WorkflowSubmitted.toString)))
+              case Failure(e) => failInternalServerError(e)
+            }
+          case Success(workflowSourceFiles) => failBadRequest(new IllegalArgumentException("To submit more than one workflow at a time, use the batch endpoint."))
+          case Failure(t) => failBadRequest(t)
+        }
+      case Failure(e) => failInternalServerError(e)
+    }
+  }
 
   private def validateWorkflowId(possibleWorkflowId: String): Future[WorkflowId] = {
     Try(WorkflowId.fromString(possibleWorkflowId)) match {
@@ -171,7 +183,7 @@ trait AkkaHttpService {
     val response = validateWorkflowId(possibleWorkflowId) flatMap { w => metadataBuilderActor.ask(request(w)).mapTo[MetadataBuilderActorResponse] }
 
     onComplete(response) {
-      case Success(r: BuiltMetadataResponse) => complete(r)
+      case Success(r: BuiltMetadataResponse) => complete(r.response)
       case Success(r: FailedMetadataResponse) => failInternalServerError(r.reason)
       case Failure(e: UnrecognizedWorkflowException) => complete((StatusCodes.NotFound, APIResponse.fail(e)))
       case Failure(e) => failInternalServerError(e)
