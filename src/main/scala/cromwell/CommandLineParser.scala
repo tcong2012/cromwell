@@ -3,6 +3,7 @@ package cromwell
 import java.io.File
 
 import com.typesafe.config.ConfigFactory
+import cromwell.server.CromwellServer
 
 object CommandLineParser extends App {
 
@@ -80,18 +81,18 @@ object CommandLineParser extends App {
       )
   }
 
-  // parser.parse returns Option[C]
-  parser.parse(args, Config()) match {
-    case Some(config) =>
-      println("you have a good argument")
+  // parser.parse returns Option[C].  If this is `None` the default behavior should be to print help text, which is what we want.
+  parser.parse(args, Config()) foreach {
+    config =>
       config.command match {
-        case Some(Run) =>
-        case Some(Server) =>
-        case None => // should be unpossible
+        case Some(cmd) =>
+          CromwellCommandLine.initLogging(cmd)
+          val cromwellSystem = CromwellCommandLine.buildCromwellSystem
+          cmd match {
+            case Run =>
+            case Server => CromwellCommandLine.waitAndExit(CromwellServer.run, cromwellSystem)
+          }
+        case None => // a cry for help
       }
-
-    case None =>
-      println("seriously wtf")
   }
-
 }
