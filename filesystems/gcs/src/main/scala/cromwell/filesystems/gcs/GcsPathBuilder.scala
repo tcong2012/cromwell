@@ -49,10 +49,10 @@ object GcsPathBuilder {
     override def errorMessage = {
       val prefix = List(
         s"The bucket name in GCS path '$pathString' is not compatible with",
-        "URI host name standards, but URI host name compatibility is a requirement for Cromwell's GCS filesystem support."
+        "URI host name standards. URI host name compatibility is a requirement for Cromwell's GCS filesystem support."
       )
-      val underscoreWarning = if (pathString.contains("_")) "This bucket name contains an underscore which is not a valid character in a URI host." else ""
-      (prefix :+ underscoreWarning).mkString("\n")
+      val underscoreWarning = if (pathString.contains("_")) "Specifically, this bucket name contains an underscore which is not a valid character in a URI host." else ""
+      (prefix :+ underscoreWarning).mkString(" ")
     }
   }
   final case class UnparseableGcsPath(pathString: String, throwable: Throwable) extends InvalidGcsPath {
