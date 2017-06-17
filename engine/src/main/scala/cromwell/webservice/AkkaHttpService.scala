@@ -46,7 +46,6 @@ trait AkkaHttpService {
 
   private val backendResponse = BackendResponse(BackendConfiguration.AllBackendEntries.map(_.name).sorted, BackendConfiguration.DefaultBackendEntry.name)
 
-  // FIXME: This is missing the 'api' stuff
   // FIXME: Missing thib's new call cache stuff and ruchi's label stuff
   val routes =
     path("workflows" / Segment / "backends") { version =>
