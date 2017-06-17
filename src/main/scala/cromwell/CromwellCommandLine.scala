@@ -9,6 +9,8 @@ import com.typesafe.config.ConfigFactory
 import cromwell.CommandLineParser._
 import cromwell.core.path.Path
 import cromwell.core.{WorkflowSourceFilesCollection, WorkflowSourceFilesWithDependenciesZip, WorkflowSourceFilesWithoutImports}
+import cromwell.engine.workflow.SingleWorkflowRunnerActor
+import cromwell.engine.workflow.SingleWorkflowRunnerActor.RunWorkflow
 import cromwell.server.CromwellSystem
 import lenthall.exception.MessageAggregation
 import lenthall.validation.ErrorOr._
@@ -34,8 +36,12 @@ object CromwellCommandLine {
     sealed trait Mode {
       def logbackSetting: String
     }
-    final case class Standard(override val logbackSetting: String = "STANDARD") extends Mode
-    final case class Pretty(override val logbackSetting: String = "PRETTY") extends Mode
+    case object Standard extends Mode {
+      override val logbackSetting: String = "STANDARD"
+    }
+    case object Pretty extends Mode {
+      override val logbackSetting: String = "PRETTY"
+    }
   }
   /**
     * If a cromwell server is going to be run, makes adjustments to the default logback configuration.
@@ -49,8 +55,8 @@ object CromwellCommandLine {
     */
   def initLogging(command: Command): Unit = {
     val logMode = command match {
-      case Server => LogMode.Standard()
-      case Run => LogMode.Pretty()
+      case Server => LogMode.Standard
+      case Run => LogMode.Pretty
     }
 
     val defaultProps = Map("LOG_MODE" -> logMode.logbackSetting, "LOG_LEVEL" -> "INFO")
@@ -69,6 +75,18 @@ object CromwellCommandLine {
     Make sure that the next time one uses the ConfigFactory that our updated system properties are loaded.
      */
     ConfigFactory.invalidateCaches()
+  }
+
+  def runWorkflow(commandLine: RunSingle, cromwellSystem: CromwellSystem): Unit = {
+    implicit val actorSystem = cromwellSystem.actorSystem
+
+    val runnerProps = SingleWorkflowRunnerActor.props(commandLine.sourceFiles, commandLine.config.metadataOutputPath)(cromwellSystem.materializer)
+
+    val runner = cromwellSystem.actorSystem.actorOf(runnerProps, "SingleWorkflowRunnerActor")
+
+    import cromwell.util.PromiseActor.EnhancedActorRef
+
+    waitAndExit(_ => runner.askNoTimeout(RunWorkflow), cromwellSystem)
   }
 
   def buildCromwellSystem: CromwellSystem = {
@@ -107,7 +125,7 @@ object CromwellCommandLine {
   }
 }
 
-final case class RunSingle(sourceFiles: WorkflowSourceFilesCollection) extends CromwellCommandLine
+final case class RunSingle(sourceFiles: WorkflowSourceFilesCollection, config: Config) extends CromwellCommandLine
 
 object RunSingle {
 
@@ -146,7 +164,7 @@ object RunSingle {
     val runSingle: ErrorOr[RunSingle] = for {
       sources <- sourceFileCollection
       _ <- writeableMetadataPath(config.metadataOutputPath)
-    } yield RunSingle(sources)
+    } yield RunSingle(sources, config)
 
     runSingle match {
       case Valid(r) => r

@@ -89,6 +89,8 @@ object CommandLineParser extends App {
           val cromwellSystem = CromwellCommandLine.buildCromwellSystem
           cmd match {
             case Run =>
+              val runSingle = RunSingle.apply(config)
+              CromwellCommandLine.runWorkflow(runSingle, cromwellSystem)
             case Server => CromwellCommandLine.waitAndExit(CromwellServer.run, cromwellSystem)
           }
         case None => // a cry for help
