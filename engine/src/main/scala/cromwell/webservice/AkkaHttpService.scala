@@ -4,7 +4,7 @@ import akka.actor.{ActorRef, ActorRefFactory}
 import akka.http.scaladsl.server.Directives._
 
 import scala.concurrent.{ExecutionContext, Future}
-import akka.http.scaladsl.model.{Multipart, StatusCodes, Uri}
+import akka.http.scaladsl.model._
 import akka.http.scaladsl.model.Multipart.BodyPart
 import akka.stream.ActorMaterializer
 import cromwell.engine.backend.BackendConfiguration

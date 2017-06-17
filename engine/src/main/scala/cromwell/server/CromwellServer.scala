@@ -47,9 +47,8 @@ class CromwellServerActor(cromwellSystem: CromwellSystem)(override implicit val 
   val port = webserviceConf.getInt("port")
 
   val routeUnwrapped: Boolean = cromwellSystem.conf.as[Option[Boolean]]("api.routeUnwrapped").getOrElse(false)
-  val allRoutes: Route = routes.wrapped("api", routeUnwrapped) ~ swaggerUiResourceRoute
 
-  // FIXME: Can I use that httpapp thing?
+  val allRoutes: Route = routes.wrapped("api", routeUnwrapped) ~ swaggerUiResourceRoute
 
   Http().bindAndHandle(allRoutes, interface, port) onComplete {
     case Success(_) => actorSystem.log.info("Cromwell service started...")
