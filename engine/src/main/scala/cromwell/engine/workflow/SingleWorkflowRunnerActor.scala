@@ -22,7 +22,7 @@ import cromwell.services.metadata.impl.WriteMetadataActor.{CheckPendingWrites, H
 import cromwell.subworkflowstore.EmptySubWorkflowStoreActor
 import cromwell.webservice.PerRequest.RequestComplete
 import cromwell.webservice.metadata.MetadataBuilderActor
-import spray.http.StatusCodes
+import cromwell.webservice.metadata.MetadataBuilderActor.BuiltMetadataResponse
 import spray.json._
 
 import scala.concurrent.ExecutionContext.Implicits.global
@@ -69,18 +69,18 @@ class SingleWorkflowRunnerActor(source: WorkflowSourceFilesCollection, metadataO
     case Event(IssuePollRequest, RunningSwraData(_, id)) =>
       requestStatus(id)
       stay()
-    case Event(RequestComplete((StatusCodes.OK, jsObject: JsObject)), RunningSwraData(_, _)) if !jsObject.state.isTerminal =>
+    case Event(BuiltMetadataResponse(jsObject: JsObject), RunningSwraData(_, _)) if !jsObject.state.isTerminal =>
       schedulePollRequest()
       stay()
-    case Event(RequestComplete((StatusCodes.OK, jsObject: JsObject)), RunningSwraData(replyTo, id)) if jsObject.state == WorkflowSucceeded =>
+    case Event(BuiltMetadataResponse(jsObject: JsObject), RunningSwraData(replyTo, id)) if jsObject.state == WorkflowSucceeded =>
       log.info(s"$Tag workflow finished with status '$WorkflowSucceeded'.")
       serviceRegistryActor ! CheckPendingWrites
       goto(WaitingForFlushedMetadata) using SucceededSwraData(replyTo, id)
-    case Event(RequestComplete((StatusCodes.OK, jsObject: JsObject)), RunningSwraData(replyTo, id)) if jsObject.state == WorkflowFailed =>
+    case Event(BuiltMetadataResponse(jsObject: JsObject), RunningSwraData(replyTo, id)) if jsObject.state == WorkflowFailed =>
       log.info(s"$Tag workflow finished with status '$WorkflowFailed'.")
       serviceRegistryActor ! CheckPendingWrites
       goto(WaitingForFlushedMetadata) using FailedSwraData(replyTo, id, new RuntimeException(s"Workflow $id transitioned to state $WorkflowFailed"))
-    case Event(RequestComplete((StatusCodes.OK, jsObject: JsObject)), RunningSwraData(replyTo, id)) if jsObject.state == WorkflowAborted =>
+    case Event(BuiltMetadataResponse(jsObject: JsObject), RunningSwraData(replyTo, id)) if jsObject.state == WorkflowAborted =>
       log.info(s"$Tag workflow finished with status '$WorkflowAborted'.")
       serviceRegistryActor ! CheckPendingWrites
       goto(WaitingForFlushedMetadata) using AbortedSwraData(replyTo, id)
@@ -100,13 +100,13 @@ class SingleWorkflowRunnerActor(source: WorkflowSourceFilesCollection, metadataO
   }
 
   when (RequestingOutputs) {
-    case Event(RequestComplete((StatusCodes.OK, outputs: JsObject)), data: TerminalSwraData) =>
+    case Event(BuiltMetadataResponse(outputs: JsObject), data: TerminalSwraData) =>
       outputOutputs(outputs)
       requestMetadataOrIssueReply(data)
   }
 
   when (RequestingMetadata) {
-    case Event(RequestComplete((StatusCodes.OK, metadata: JsObject)), data: TerminalSwraData) =>
+    case Event(BuiltMetadataResponse(metadata: JsObject), data: TerminalSwraData) =>
       outputMetadata(metadata)
       issueReply(data)
   }
