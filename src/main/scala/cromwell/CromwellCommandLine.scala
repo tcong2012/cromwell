@@ -7,7 +7,7 @@ import cats.syntax.cartesian._
 import cats.syntax.validated._
 import com.typesafe.config.ConfigFactory
 import cromwell.CommandLineParser._
-import cromwell.core.path.{DefaultPathBuilder, Path}
+import cromwell.core.path.Path
 import cromwell.core.{WorkflowSourceFilesCollection, WorkflowSourceFilesWithDependenciesZip, WorkflowSourceFilesWithoutImports}
 import cromwell.server.CromwellSystem
 import lenthall.exception.MessageAggregation
@@ -15,8 +15,7 @@ import lenthall.validation.ErrorOr._
 import org.slf4j.LoggerFactory
 
 import scala.collection.JavaConverters._
-import scala.concurrent.duration._
-import scala.concurrent.duration.Duration
+import scala.concurrent.duration.{Duration, _}
 import scala.concurrent.{Await, Future, TimeoutException}
 import scala.language.postfixOps
 import scala.util.{Failure, Success, Try}
@@ -26,18 +25,6 @@ case object UsageAndExit extends CromwellCommandLine
 case object RunServer extends CromwellCommandLine
 case object VersionAndExit extends CromwellCommandLine
 
-// There are subcommands here for `run` and `server` (and maybe `version`?).  `server` doesn't take any arguments.
-
-// Cross check all these parameter names with WES so we're not needlessly GA4GH hostile.
-
-// run --workflow-descriptor <workflow source file>
-//    [--workflow-params <inputs> (default none, but seriously uninteresting without this)]
-//    [--key-values (default none)]
-//    [--workflow-type <workflow type> (default "WDL")]
-//    [--workflow-type-version <workflow type version> (default "haha version whats that")]
-//    [--labels <labels> (default none)]
-//    [--imports <workflow import bundle> (default none)[
-//    [--metadata-output-path <metadata output path> (default none)]
 
 case class CommandLine(source: File, inputs: Option[File])
 
@@ -105,7 +92,7 @@ object CromwellCommandLine {
     try {
       Await.ready(workflowManagerSystem.shutdownActorSystem(), 30 seconds)
     } catch {
-      case timeout: TimeoutException => Console.err.println("Timed out trying to shutdown actor system")
+      case _: TimeoutException => Console.err.println("Timed out trying to shutdown actor system")
       case other: Exception => Console.err.println(s"Unexpected error trying to shutdown actor system: ${other.getMessage}")
     }
 
@@ -120,40 +107,20 @@ object CromwellCommandLine {
   }
 }
 
-// We cannot initialize the logging until after we parse the command line in Main.scala. So we have to bundle up and pass back this information, just for logging.
-case class SingleRunPathParameters(wdlPath: Path, inputsPath: Option[Path], optionsPath: Option[Path], metadataPath: Option[Path], importPath: Option[Path], labelsPath: Option[Path]) {
-  def logMe(log: org.slf4j.Logger) = {
-    log.info(s"  WDL file: $wdlPath")
-    inputsPath foreach { i => log.info(s"  Inputs: $i") }
-    optionsPath foreach { o => log.info(s"  Workflow Options: $o") }
-    metadataPath foreach { m => log.info(s"  Workflow Metadata Output: $m") }
-    importPath foreach { i => log.info(s"  Workflow import bundle: $i") }
-    labelsPath foreach { o => log.info(s"  Custom labels: $o") }
-  }
-}
-
-final case class RunSingle(sourceFiles: WorkflowSourceFilesCollection, paths: SingleRunPathParameters) extends CromwellCommandLine
+final case class RunSingle(sourceFiles: WorkflowSourceFilesCollection) extends CromwellCommandLine
 
 object RunSingle {
 
   lazy val Log = LoggerFactory.getLogger("cromwell")
 
-  def apply(args: Seq[String]): RunSingle = {
-    val pathParameters = SingleRunPathParameters(
-      wdlPath = DefaultPathBuilder.get(args.head).toAbsolutePath,
-      inputsPath = argPath(args, 1, Option("inputs"), checkDefaultExists = false),
-      optionsPath = argPath(args, 2, Option("options")),
-      metadataPath = argPath(args, 3, None),
-      importPath = argPath(args, 4, None),
-      labelsPath = argPath(args, 5, None)
-    )
+  def apply(config: Config): RunSingle = {
 
-    val workflowSource = readContent("Workflow source", pathParameters.wdlPath)
-    val inputsJson = readJson("Workflow inputs", pathParameters.inputsPath)
-    val optionsJson = readJson("Workflow options", pathParameters.optionsPath)
-    val labelsJson = readJson("Labels", pathParameters.labelsPath)
+    val workflowSource = readContent("Workflow source", config.workflowSource.get)
+    val inputsJson = readJson("Workflow inputs", config.workflowInputs)
+    val optionsJson = readJson("Workflow options", config.workflowOptions)
+    val labelsJson = readJson("Labels", config.labels)
 
-    val sourceFileCollection = pathParameters.importPath match {
+    val sourceFileCollection = config.imports match {
       case Some(p) => (workflowSource |@| inputsJson |@| optionsJson |@| labelsJson) map { (w, i, o, l) =>
         WorkflowSourceFilesWithDependenciesZip.apply(
           workflowSource = w,
@@ -178,8 +145,8 @@ object RunSingle {
 
     val runSingle: ErrorOr[RunSingle] = for {
       sources <- sourceFileCollection
-      _ <- writeableMetadataPath(pathParameters.metadataPath)
-    } yield RunSingle(sources, pathParameters)
+      _ <- writeableMetadataPath(config.metadataOutputPath)
+    } yield RunSingle(sources)
 
     runSingle match {
       case Valid(r) => r
@@ -214,34 +181,7 @@ object RunSingle {
     }
   }
 
-  private def metadataPathIsWriteable(metadataPath: Path): Boolean = {
-    Try(metadataPath.createIfNotExists(createParents = true).append("")) match {
-      case Success(_) => true
-      case Failure(_) => false
-    }
-  }
+  private def metadataPathIsWriteable(metadataPath: Path): Boolean =
+    Try(metadataPath.createIfNotExists(createParents = true).append("")).isSuccess
 
-  /**
-    * Retrieve the arg at index as path, or return some default. Args specified as "-" will be returned as None.
-    *
-    * @param args The run command arguments, with the wdl path at arg.head.
-    * @param index The index of the path we're looking for.
-    * @param defaultExt The default extension to use if the argument was not specified at all.
-    * @param checkDefaultExists If true, verify that our computed default file exists before using it.
-    * @return The argument as a Path resolved as a sibling to the wdl path.
-    */
-  private def argPath(args: Seq[String], index: Int, defaultExt: Option[String],
-                      checkDefaultExists: Boolean = true): Option[Path] = {
-
-    // To return a default, swap the extension, and then maybe check if the file exists.
-    def defaultPath = defaultExt
-      .map(ext => DefaultPathBuilder.get(args.head).swapExt("wdl", ext))
-      .filter(path => !checkDefaultExists || path.exists)
-      .map(_.pathAsString)
-
-    // Return the path for the arg index, or the default, but remove "-" paths.
-    for {
-      path <- args.lift(index) orElse defaultPath filterNot (_ == "-")
-    } yield DefaultPathBuilder.get(path).toAbsolutePath
-  }
 }

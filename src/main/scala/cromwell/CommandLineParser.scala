@@ -1,8 +1,7 @@
 package cromwell
 
-import java.io.File
-
 import com.typesafe.config.ConfigFactory
+import cromwell.core.path.{DefaultPathBuilder, Path}
 import cromwell.server.CromwellServer
 
 object CommandLineParser extends App {
@@ -14,14 +13,14 @@ object CommandLineParser extends App {
   case object Server extends Command
 
   case class Config(command: Option[Command] = None,
-                    workflowSource: Option[File] = None,
-                    workflowInputs: Option[File] = None,
-                    workflowOptions: Option[File] = None,
+                    workflowSource: Option[Path] = None,
+                    workflowInputs: Option[Path] = None,
+                    workflowOptions: Option[Path] = None,
                     workflowType: Option[String] = Option("WDL"), // ADT this, somehow.
                     workflowTypeVersion: Option[String] = Option("v2.0-draft"), // maybe ADT this
-                    labels: Option[File] = None,
-                    imports: Option[File] = None,
-                    metadataOutputPath: Option[File] = None
+                    labels: Option[Path] = None,
+                    imports: Option[Path] = None,
+                    metadataOutputPath: Option[Path] = None
                    )
 
   lazy val cromwellVersion = ConfigFactory.load("cromwell-version.conf").getConfig("version").getString("cromwell")
@@ -52,32 +51,32 @@ object CommandLineParser extends App {
       action((_, c) => c.copy(command = Option(Run))).
       text("Run the workflow locally and print out the outputs in JSON format.").
       children(
-        opt[File]('w', "workflow-descriptor").text("Workflow source file.").
-          action((f, c) =>
-            c.copy(workflowSource = Option(f))).required(),
-        opt[File]('i', "workflow-inputs").text("Workflow inputs file.").
-          action((f, c) =>
-            c.copy(workflowInputs = Option(f))),
-        opt[File]('o', "workflow-options").text("Workflow options file.").
-          action((f, c) =>
-            c.copy(workflowOptions = Option(f))),
+        opt[String]('w', "workflow-descriptor").text("Workflow source file.").
+          action((s, c) =>
+            c.copy(workflowSource = Option(DefaultPathBuilder.get(s)))).required(),
+        opt[String]('i', "workflow-inputs").text("Workflow inputs file.").
+          action((s, c) =>
+            c.copy(workflowInputs = Option(DefaultPathBuilder.get(s)))),
+        opt[String]('o', "workflow-options").text("Workflow options file.").
+          action((s, c) =>
+            c.copy(workflowOptions = Option(DefaultPathBuilder.get(s)))),
         opt[String]('t', "workflow-type").text("Workflow type.").
           action((s, c) =>
             c.copy(workflowType = Option(s))),
         opt[String]('v', "workflow-type-version").text("Workflow type version.").
           action((s, c) =>
             c.copy(workflowTypeVersion = Option(s))),
-        opt[File]('l', "labels").text("Labels file.").
-          action((f, c) =>
-            c.copy(labels = Option(f))),
-        opt[File]('p', "imports").text(
+        opt[String]('l', "labels").text("Labels file.").
+          action((s, c) =>
+            c.copy(labels = Option(DefaultPathBuilder.get(s)))),
+        opt[String]('p', "imports").text(
           "A directory to search for WDL file imports, required if the primary workflow imports workflows that are outside of the root directory of the Cromwell project.").
-          action((f, c) =>
-            c.copy(imports = Option(f))),
-        opt[File]('m', "metadata-output-path").text(
+          action((s, c) =>
+            c.copy(imports = Option(DefaultPathBuilder.get(s)))),
+        opt[String]('m', "metadata-output-path").text(
           "An optional file path to output metadata.").
-          action((f, c) =>
-            c.copy(metadataOutputPath = Option(f)))
+          action((s, c) =>
+            c.copy(metadataOutputPath = Option(DefaultPathBuilder.get(s))))
       )
   }
 
