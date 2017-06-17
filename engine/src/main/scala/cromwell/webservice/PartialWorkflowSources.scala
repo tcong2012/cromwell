@@ -42,24 +42,24 @@ object PartialWorkflowSources {
       val name = kv._1
       val data = kv._2
 
-      if (name.contains("wdlSource") || name.contains("workflowSource")) {
-        if (name.contains("wdlSource")) deprecationWarning(out = "wdlSource", in = "workflowSource")
+      if (name == "wdlSource" || name == "workflowSource") {
+        if (name == "wdlSource") deprecationWarning(out = "wdlSource", in = "workflowSource")
         partialSources.copy(workflowSource = Option(data.utf8String))
-      } else if (name.contains("workflowType")) {
+      } else if (name == "workflowType") {
         partialSources.copy(workflowType = Option(data.utf8String))
-      } else if (name.contains("workflowTypeVersion")) {
+      } else if (name == "workflowTypeVersion") {
         partialSources.copy(workflowTypeVersion = Option(data.utf8String))
-      } else if (name.contains("workflowInputs")) {
+      } else if (name == "workflowInputs") {
         partialSources.copy(workflowInputs = workflowInputs(data.utf8String))
       } else if (name.startsWith("workflowInputs_")) {
         val index = name.stripPrefix("workflowInputs_").toInt
         partialSources.copy(workflowInputsAux = partialSources.workflowInputsAux + (index -> data.utf8String))
-      } else if (name.contains("workflowOptions")) {
+      } else if (name == "workflowOptions") {
         partialSources.copy(workflowOptions = Option(data.utf8String))
-      } else if (name.contains("wdlDependencies") || name.contains("workflowDependencies")) {
-        if (name.contains("wdlDependencies")) deprecationWarning(out = "wdlDependencies", in = "workflowDependencies")
+      } else if (name == "wdlDependencies" || name == "workflowDependencies") {
+        if (name == "wdlDependencies") deprecationWarning(out = "wdlDependencies", in = "workflowDependencies")
         partialSources.copy(zippedImports = Option(data.toArray))
-      } else if (name.contains("customLabels")) {
+      } else if (name == "customLabels") {
         partialSources.copy(customLabels = Option(data.utf8String))
       } else {
         throw new IllegalArgumentException(s"Unexpected body part name: $name")
