@@ -1,23 +1,20 @@
 package cromwell.webservice
 
+import akka.http.scaladsl.model.{StatusCodes, Uri}
+import akka.http.scaladsl.model.headers.Location
+import akka.http.scaladsl.testkit.ScalatestRouteTest
 import com.typesafe.config.ConfigFactory
 import cromwell.webservice.SwaggerUiHttpServiceSpec._
 import org.scalatest.prop.TableDrivenPropertyChecks
 import org.scalatest.{FlatSpec, Matchers}
-import spray.http.HttpHeaders.Location
-import spray.http.{StatusCodes, Uri}
-import spray.testkit.ScalatestRouteTest
+
 
 trait SwaggerUiHttpServiceSpec extends FlatSpec with Matchers with ScalatestRouteTest with SwaggerUiHttpService {
-  override def actorRefFactory = system
-
   override def swaggerUiVersion = TestSwaggerUiVersion
 }
 
 trait SwaggerResourceHttpServiceSpec extends FlatSpec with Matchers with ScalatestRouteTest with
 TableDrivenPropertyChecks with SwaggerResourceHttpService {
-  override def actorRefFactory = system
-
   val testPathsForOptions = Table("endpoint", "/", "/swagger", "/swagger/index.html", "/api", "/api/example",
     "/api/example?with=param", "/api/example/path")
 }

@@ -2,7 +2,7 @@ package cromwell.server
 
 import akka.pattern.ask
 import akka.util.Timeout
-import com.typesafe.config.ConfigFactory
+import cromwell.CromwellTestKitSpec.TestWorkflowManagerSystem
 import org.scalatest.concurrent.{PatienceConfiguration, ScalaFutures}
 import org.scalatest.{FlatSpec, Matchers}
 import org.specs2.mock.Mockito
@@ -16,7 +16,7 @@ class CromwellServerSpec extends FlatSpec with Matchers with Mockito with ScalaF
   it should "return 500 errors as Json" in {
     val cromwellSystem = new CromwellSystem {}
 
-    val cromwellServerActor = cromwellSystem.actorSystem.actorOf(CromwellServerActor.props(ConfigFactory.empty())(cromwellSystem.materializer))
+    val cromwellServerActor = cromwellSystem.actorSystem.actorOf(CromwellServerActor.props(new TestWorkflowManagerSystem())(cromwellSystem.materializer))
     val response = cromwellServerActor.ask(Timedout(mock[HttpRequest]))
 
     response.futureValue(PatienceConfiguration.Timeout(timeout.duration)) match {

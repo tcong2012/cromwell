@@ -67,7 +67,7 @@ object Dependencies {
   val akkaHttpServerDependencies = List( // FIXME: do that cool map trick from circe
     "org.webjars" % "swagger-ui" % "2.1.1",
     "com.typesafe.akka" %% "akka-http" % akkaHttpV,
-    "com.typesafe.akka" %% "akka-http-testkit" % akkaHttpV
+    "com.typesafe.akka" %% "akka-http-testkit" % akkaHttpV % Test
   )
 
   private val sprayServerDependencies = List(
