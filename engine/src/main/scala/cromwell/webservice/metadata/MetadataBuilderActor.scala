@@ -1,6 +1,7 @@
 package cromwell.webservice.metadata
 
 import java.time.OffsetDateTime
+import java.util.UUID
 
 import akka.actor.{ActorRef, LoggingFSM, Props}
 import cromwell.webservice.metadata.MetadataComponent._
@@ -12,13 +13,9 @@ import cromwell.core.{WorkflowId, WorkflowMetadataKeys, WorkflowState}
 import cromwell.services.ServiceRegistryActor.ServiceRegistryFailure
 import cromwell.services.metadata.MetadataService._
 import cromwell.services.metadata._
-import cromwell.webservice.PerRequest.RequestComplete
-import cromwell.webservice.metadata.MetadataBuilderActor.{BuiltMetadataResponse, FailedMetadataResponse, Idle, MetadataBuilderActorData, MetadataBuilderActorState, WaitingForMetadataService, WaitingForSubWorkflows}
-import cromwell.webservice.{APIResponse, PerRequestCreator, WorkflowJsonSupport}
+import cromwell.webservice.metadata.MetadataBuilderActor.{BuiltMetadataResponse, FailedMetadataResponse, Idle, MetadataBuilderActorData, MetadataBuilderActorResponse, MetadataBuilderActorState, WaitingForMetadataService, WaitingForSubWorkflows}
 import org.slf4j.LoggerFactory
 import spray.json._
-import spray.httpx.SprayJsonSupport._
-import spray.http.StatusCodes
 
 import scala.collection.immutable.TreeMap
 import scala.language.postfixOps
@@ -219,11 +216,13 @@ object MetadataBuilderActor {
   private def parse(events: Seq[MetadataEvent], expandedValues: Map[String, JsValue]): JsObject = {
     JsObject(events.groupBy(_.key.workflowId.toString) mapValues parseWorkflowEvents(includeCallsIfEmpty = true, expandedValues))
   }
+
+  def actorName: String = List("MetadataBuilderActor", UUID.randomUUID()).mkString("-")
 }
 
 class MetadataBuilderActor(serviceRegistryActor: ActorRef) extends LoggingFSM[MetadataBuilderActorState, Option[MetadataBuilderActorData]]
   with DefaultJsonProtocol {
-  import WorkflowJsonSupport._
+  import MetadataBuilderActor._
 
   private var target: ActorRef = ActorRef.noSender
 
@@ -269,8 +268,8 @@ class MetadataBuilderActor(serviceRegistryActor: ActorRef) extends LoggingFSM[Me
   }
   
   when(WaitingForSubWorkflows) {
-    case Event(RequestComplete(metadata), Some(data)) =>
-      processSubWorkflowMetadata(metadata, data)
+    case Event(mbr: MetadataBuilderActorResponse, Some(data)) =>
+      processSubWorkflowMetadata(mbr, data)
   }
   
   whenUnhandled {
@@ -279,13 +278,13 @@ class MetadataBuilderActor(serviceRegistryActor: ActorRef) extends LoggingFSM[Me
       stay()
   }
   
-  def processSubWorkflowMetadata(metadataResponse: Any, data: MetadataBuilderActorData) = {
+  def processSubWorkflowMetadata(metadataResponse: MetadataBuilderActorResponse, data: MetadataBuilderActorData) = {
     metadataResponse match {
-      case (StatusCodes.OK, js: JsObject) =>
+      case BuiltMetadataResponse(js) =>
         js.fields.get(WorkflowMetadataKeys.Id) match {
           case Some(subId: JsString) =>
             val newData = data.withSubWorkflow(subId.value, js)
-            
+
             if (newData.isComplete) {
               buildAndStop(data.originalQuery, data.originalEvents, newData.subWorkflowsMetadata)
             } else {
@@ -293,13 +292,12 @@ class MetadataBuilderActor(serviceRegistryActor: ActorRef) extends LoggingFSM[Me
             }
           case _ => failAndDie(new RuntimeException("Received unexpected response while waiting for sub workflow metadata."))
         }
-      case _ => failAndDie(new RuntimeException("Failed to retrieve metadata for a sub workflow."))
+      case FailedMetadataResponse(e) => failAndDie(new RuntimeException("Failed to retrieve metadata for a sub workflow.", e))
     }
   }
 
-  // FIXME: THis is highly suspicious, why RequestComplete?
   def failAndDie(reason: Throwable) = {
-    target ! RequestComplete((StatusCodes.InternalServerError, APIResponse.error(reason))) // FIXME!
+    target ! FailedMetadataResponse(reason)
     context stop self
     stay()
   }
@@ -321,7 +319,7 @@ class MetadataBuilderActor(serviceRegistryActor: ActorRef) extends LoggingFSM[Me
       else {
         // Otherwise spin up a metadata builder actor for each sub workflow
         subWorkflowIds foreach { subId =>
-          val subMetadataBuilder = context.actorOf(MetadataBuilderActor.props(serviceRegistryActor), PerRequestCreator.endpointActorName)
+          val subMetadataBuilder = context.actorOf(MetadataBuilderActor.props(serviceRegistryActor), actorName)
           subMetadataBuilder ! GetMetadataQueryAction(query.copy(workflowId = WorkflowId.fromString(subId)))
         }
         goto(WaitingForSubWorkflows) using Option(MetadataBuilderActorData(query, eventsList, Map.empty, subWorkflowIds.size))
