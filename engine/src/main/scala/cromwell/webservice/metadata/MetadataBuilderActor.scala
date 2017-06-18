@@ -296,7 +296,8 @@ class MetadataBuilderActor(serviceRegistryActor: ActorRef) extends LoggingFSM[Me
       case _ => failAndDie(new RuntimeException("Failed to retrieve metadata for a sub workflow."))
     }
   }
-  
+
+  // FIXME: THis is highly suspicious, why RequestComplete?
   def failAndDie(reason: Throwable) = {
     target ! RequestComplete((StatusCodes.InternalServerError, APIResponse.error(reason))) // FIXME!
     context stop self
