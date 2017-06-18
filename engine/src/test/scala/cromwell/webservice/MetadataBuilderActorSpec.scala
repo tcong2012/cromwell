@@ -9,13 +9,11 @@ import akka.util.Timeout
 import cromwell.core.{TestKitSuite, WorkflowId}
 import cromwell.services.metadata.MetadataService._
 import cromwell.services.metadata._
-import cromwell.webservice.PerRequest.RequestComplete
 import cromwell.webservice.metadata.MetadataBuilderActor
 import cromwell.webservice.metadata.MetadataBuilderActor.{BuiltMetadataResponse, MetadataBuilderActorResponse}
 import org.scalatest.prop.TableDrivenPropertyChecks
 import org.scalatest.{AsyncFlatSpecLike, Matchers}
 import org.specs2.mock.Mockito
-import spray.http.{StatusCode, StatusCodes}
 import spray.json._
 
 import scala.concurrent.duration._
@@ -27,6 +25,8 @@ class MetadataBuilderActorSpec extends TestKitSuite("Metadata") with AsyncFlatSp
   behavior of "MetadataParser"
 
   val defaultTimeout = 200 millis
+  implicit val timeout: Timeout = defaultTimeout
+
   val mockServiceRegistry = TestProbe()
 
   def assertMetadataResponse(action: MetadataServiceAction,
@@ -34,7 +34,6 @@ class MetadataBuilderActorSpec extends TestKitSuite("Metadata") with AsyncFlatSp
                              events: Seq[MetadataEvent],
                              expectedRes: String) = {
     val mba = system.actorOf(MetadataBuilderActor.props(mockServiceRegistry.ref))
-    implicit val timeout: Timeout = defaultTimeout
     val response = mba.ask(action).mapTo[MetadataBuilderActorResponse]
     mockServiceRegistry.expectMsg(defaultTimeout, action)
     mockServiceRegistry.reply(MetadataLookupResponse(queryReply, events))
@@ -445,7 +444,7 @@ class MetadataBuilderActorSpec extends TestKitSuite("Metadata") with AsyncFlatSp
     
     val parentProbe = TestProbe()
     val metadataBuilder = TestActorRef(MetadataBuilderActor.props(mockServiceRegistry.ref), parentProbe.ref, s"MetadataActor-${UUID.randomUUID()}")
-    metadataBuilder ! mainQueryAction
+    val response = metadataBuilder.ask(mainQueryAction).mapTo[MetadataBuilderActorResponse]
     mockServiceRegistry.expectMsg(defaultTimeout, mainQueryAction)
     mockServiceRegistry.reply(MetadataLookupResponse(mainQuery, mainEvents))
     mockServiceRegistry.expectMsg(defaultTimeout, subQueryAction)
@@ -471,11 +470,9 @@ class MetadataBuilderActorSpec extends TestKitSuite("Metadata") with AsyncFlatSp
          |}
        """.stripMargin
 
-    parentProbe.expectMsgPF(defaultTimeout) {
-      case response: RequestComplete[(StatusCode, JsObject)] @unchecked =>
-        response.response._1 shouldBe StatusCodes.OK
-        response.response._2 shouldBe expandedRes.parseJson
-    }
+    response map { r => r shouldBe a [BuiltMetadataResponse] }
+    val bmr = response.mapTo[BuiltMetadataResponse]
+    bmr map { b => b.response shouldBe expandedRes.parseJson}
   }
   
   it should "NOT expand sub workflow metadata when NOT asked for" in {
@@ -491,7 +488,7 @@ class MetadataBuilderActorSpec extends TestKitSuite("Metadata") with AsyncFlatSp
     
     val parentProbe = TestProbe()
     val metadataBuilder = TestActorRef(MetadataBuilderActor.props(mockServiceRegistry.ref), parentProbe.ref, s"MetadataActor-${UUID.randomUUID()}")
-    metadataBuilder ! queryNoExpandAction
+    val response = metadataBuilder.ask(queryNoExpandAction).mapTo[MetadataBuilderActorResponse]
     mockServiceRegistry.expectMsg(defaultTimeout, queryNoExpandAction)
     mockServiceRegistry.reply(MetadataLookupResponse(queryNoExpand, mainEvents))
 
@@ -511,11 +508,10 @@ class MetadataBuilderActorSpec extends TestKitSuite("Metadata") with AsyncFlatSp
          |  "id": "$mainWorkflowId"
          |}
        """.stripMargin
-    
-    parentProbe.expectMsgPF(defaultTimeout) {
-      case response: RequestComplete[(StatusCode, JsObject)] @unchecked =>
-        response.response._1 shouldBe StatusCodes.OK
-        response.response._2 shouldBe nonExpandedRes.parseJson
-    }
+
+    response map { r => r shouldBe a [BuiltMetadataResponse] }
+    val bmr = response.mapTo[BuiltMetadataResponse]
+    bmr map { b => b.response shouldBe nonExpandedRes.parseJson}
+
   }
 }
