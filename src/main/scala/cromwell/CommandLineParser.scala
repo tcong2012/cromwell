@@ -90,10 +90,11 @@ object CommandLineParser extends App {
     }
   }
 
-  // parser.parse returns Option[C].  If this is `None` (corresponding to invalid arguments) the default `scopt`
-  // behavior is to print help text and exit, which is what we want.
-  for {
+  val run = for {
     config <- parser.parse(args, CommandLineArguments())
     command <- config.command
   } yield runCromwell(command, config)
+
+  // parser.parse returns Option[C].  If this is `None` (corresponding to invalid arguments) show usage and exit.
+  run getOrElse parser.showUsageAsError()
 }
