@@ -125,13 +125,13 @@ object CromwellCommandLine {
   }
 }
 
-final case class RunSingle(sourceFiles: WorkflowSourceFilesCollection, config: Config) extends CromwellCommandLine
+final case class RunSingle(sourceFiles: WorkflowSourceFilesCollection, config: CommandLineArguments) extends CromwellCommandLine
 
 object RunSingle {
 
   lazy val Log = LoggerFactory.getLogger("cromwell")
 
-  def apply(config: Config): RunSingle = {
+  def apply(config: CommandLineArguments): RunSingle = {
 
     val workflowSource = readContent("Workflow source", config.workflowSource.get)
     val inputsJson = readJson("Workflow inputs", config.workflowInputs)

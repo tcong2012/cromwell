@@ -12,16 +12,16 @@ object CommandLineParser extends App {
 
   case object Server extends Command
 
-  case class Config(command: Option[Command] = None,
-                    workflowSource: Option[Path] = None,
-                    workflowInputs: Option[Path] = None,
-                    workflowOptions: Option[Path] = None,
-                    workflowType: Option[String] = Option("WDL"), // ADT this, somehow.
-                    workflowTypeVersion: Option[String] = Option("v2.0-draft"), // maybe ADT this
-                    labels: Option[Path] = None,
-                    imports: Option[Path] = None,
-                    metadataOutputPath: Option[Path] = None
-                   )
+  case class CommandLineArguments(command: Option[Command] = None,
+                                  workflowSource: Option[Path] = None,
+                                  workflowInputs: Option[Path] = None,
+                                  workflowOptions: Option[Path] = None,
+                                  workflowType: Option[String] = Option("WDL"), // ADT this, somehow.
+                                  workflowTypeVersion: Option[String] = Option("v2.0-draft"), // maybe ADT this
+                                  labels: Option[Path] = None,
+                                  imports: Option[Path] = None,
+                                  metadataOutputPath: Option[Path] = None
+                                 )
 
   lazy val cromwellVersion = ConfigFactory.load("cromwell-version.conf").getConfig("version").getString("cromwell")
 
@@ -44,7 +44,7 @@ object CommandLineParser extends App {
 //    -m, --metadata-output-path <value>
 //                             An optional file path to output metadata.
 
-  val parser = new scopt.OptionParser[Config]("cromwell") {
+  val parser = new scopt.OptionParser[CommandLineArguments]("cromwell") {
     head("cromwell", cromwellVersion)
 
     help("help").text("Cromwell - Lord Protector / Workflow Execution Engine")
@@ -87,7 +87,7 @@ object CommandLineParser extends App {
   }
 
   // parser.parse returns Option[C].  If this is `None` the default behavior should be to print help text, which is what we want.
-  parser.parse(args, Config()) foreach {
+  parser.parse(args, CommandLineArguments()) foreach {
     config =>
       config.command match {
         case Some(cmd) =>
