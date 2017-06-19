@@ -2,22 +2,19 @@ package cromwell
 
 import com.typesafe.config.ConfigFactory
 import cromwell.core.path.{DefaultPathBuilder, Path}
-import cromwell.server.CromwellServer
 
 object CommandLineParser extends App {
 
   sealed trait Command
-
   case object Run extends Command
-
   case object Server extends Command
 
   case class CommandLineArguments(command: Option[Command] = None,
                                   workflowSource: Option[Path] = None,
                                   workflowInputs: Option[Path] = None,
                                   workflowOptions: Option[Path] = None,
-                                  workflowType: Option[String] = Option("WDL"), // ADT this, somehow.
-                                  workflowTypeVersion: Option[String] = Option("v2.0-draft"), // maybe ADT this
+                                  workflowType: Option[String] = Option("WDL"),
+                                  workflowTypeVersion: Option[String] = Option("v2.0-draft"),
                                   labels: Option[Path] = None,
                                   imports: Option[Path] = None,
                                   metadataOutputPath: Option[Path] = None
@@ -86,20 +83,17 @@ object CommandLineParser extends App {
       )
   }
 
-  // parser.parse returns Option[C].  If this is `None` the default behavior should be to print help text, which is what we want.
-  parser.parse(args, CommandLineArguments()) foreach {
-    config =>
-      config.command match {
-        case Some(cmd) =>
-          CromwellCommandLine.initLogging(cmd)
-          val cromwellSystem = CromwellCommandLine.buildCromwellSystem
-          cmd match {
-            case Run =>
-              val runSingle = RunSingle.apply(config)
-              CromwellCommandLine.runWorkflow(runSingle, cromwellSystem)
-            case Server => CromwellCommandLine.waitAndExit(CromwellServer.run, cromwellSystem)
-          }
-        case None => // a cry for help
-      }
+  private def runCromwell(command: Command, args: CommandLineArguments): Unit = {
+    command match {
+      case Run => CromwellEntryPoint.runSingle(args)
+      case Server => CromwellEntryPoint.runServer()
+    }
   }
+
+  // parser.parse returns Option[C].  If this is `None` (corresponding to invalid arguments) the default `scopt`
+  // behavior is to print help text and exit, which is what we want.
+  for {
+    config <- parser.parse(args, CommandLineArguments())
+    command <- config.command
+  } yield runCromwell(command, config)
 }

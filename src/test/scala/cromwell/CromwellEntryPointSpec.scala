@@ -5,7 +5,7 @@ import cromwell.util.SampleWdl
 import cromwell.util.SampleWdl.ThreeStep
 import org.scalatest.{FlatSpec, Matchers}
 
-class CromwellCommandLineSpec extends FlatSpec with Matchers {
+class CromwellEntryPointSpec extends FlatSpec with Matchers {
 
   behavior of "CromwellCommandLine"
 
@@ -95,7 +95,7 @@ class CromwellCommandLineSpec extends FlatSpec with Matchers {
 //  }
 }
 
-object CromwellCommandLineSpec {
+object CromwellEntryPointSpec {
   val ThreeStepWithoutOptions = WdlAndInputs(ThreeStep)
   val ThreeStepInputs = ThreeStepWithoutOptions.inputsFile.contentAsString
 

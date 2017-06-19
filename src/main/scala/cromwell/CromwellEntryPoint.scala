@@ -1,7 +1,5 @@
 package cromwell
 
-import java.io.File
-
 import cats.data.Validated._
 import cats.syntax.cartesian._
 import cats.syntax.validated._
@@ -11,7 +9,7 @@ import cromwell.core.path.Path
 import cromwell.core.{WorkflowSourceFilesCollection, WorkflowSourceFilesWithDependenciesZip, WorkflowSourceFilesWithoutImports}
 import cromwell.engine.workflow.SingleWorkflowRunnerActor
 import cromwell.engine.workflow.SingleWorkflowRunnerActor.RunWorkflow
-import cromwell.server.CromwellSystem
+import cromwell.server.{CromwellServer, CromwellSystem}
 import lenthall.exception.MessageAggregation
 import lenthall.validation.ErrorOr._
 import org.slf4j.LoggerFactory
@@ -22,17 +20,28 @@ import scala.concurrent.{Await, Future, TimeoutException}
 import scala.language.postfixOps
 import scala.util.{Failure, Success, Try}
 
-sealed abstract class CromwellCommandLine
-case object UsageAndExit extends CromwellCommandLine
-case object RunServer extends CromwellCommandLine
-case object VersionAndExit extends CromwellCommandLine
 
+object CromwellEntryPoint {
 
-case class CommandLine(source: File, inputs: Option[File])
+  def runServer() = {
+    val system = buildCromwellSystem(Server)
+    waitAndExit(CromwellServer.run, system)
+  }
 
-object CromwellCommandLine {
+  def runSingle(args: CommandLineArguments): Unit = {
+    val cromwellSystem = buildCromwellSystem(Run)
+    implicit val actorSystem = cromwellSystem.actorSystem
 
-  object LogMode {
+    val sources = validateRunArguments(args)
+    val runnerProps = SingleWorkflowRunnerActor.props(sources, args.metadataOutputPath)(cromwellSystem.materializer)
+
+    val runner = cromwellSystem.actorSystem.actorOf(runnerProps, "SingleWorkflowRunnerActor")
+
+    import cromwell.util.PromiseActor.EnhancedActorRef
+    waitAndExit(_ => runner.askNoTimeout(RunWorkflow), cromwellSystem)
+  }
+
+  private object LogMode {
     sealed trait Mode {
       def logbackSetting: String
     }
@@ -42,6 +51,11 @@ object CromwellCommandLine {
     case object Pretty extends Mode {
       override val logbackSetting: String = "PRETTY"
     }
+  }
+
+  private def buildCromwellSystem(command: Command): CromwellSystem = {
+    initLogging(command)
+    buildCromwellSystem
   }
   /**
     * If a cromwell server is going to be run, makes adjustments to the default logback configuration.
@@ -53,13 +67,16 @@ object CromwellCommandLine {
     * Also copies variables from config/system/environment/defaults over to the system properties.
     * Fixes issue where users are trying to specify Java properties as environment variables.
     */
-  def initLogging(command: Command): Unit = {
+  private def initLogging(command: Command): Unit = {
     val logMode = command match {
       case Server => LogMode.Standard
       case Run => LogMode.Pretty
     }
 
-    val defaultProps = Map("LOG_MODE" -> logMode.logbackSetting, "LOG_LEVEL" -> "INFO")
+    val defaultProps = Map(
+      "LOG_MODE" -> logMode.logbackSetting,
+      "LOG_LEVEL" -> "INFO"
+    )
 
     val config = ConfigFactory.load
       .withFallback(ConfigFactory.systemEnvironment())
@@ -77,18 +94,6 @@ object CromwellCommandLine {
     ConfigFactory.invalidateCaches()
   }
 
-  def runWorkflow(commandLine: RunSingle, cromwellSystem: CromwellSystem): Unit = {
-    implicit val actorSystem = cromwellSystem.actorSystem
-
-    val runnerProps = SingleWorkflowRunnerActor.props(commandLine.sourceFiles, commandLine.config.metadataOutputPath)(cromwellSystem.materializer)
-
-    val runner = cromwellSystem.actorSystem.actorOf(runnerProps, "SingleWorkflowRunnerActor")
-
-    import cromwell.util.PromiseActor.EnhancedActorRef
-
-    waitAndExit(_ => runner.askNoTimeout(RunWorkflow), cromwellSystem)
-  }
-
   def buildCromwellSystem: CromwellSystem = {
     lazy val Log = LoggerFactory.getLogger("cromwell")
 
@@ -103,7 +108,7 @@ object CromwellCommandLine {
     } get
   }
 
-  def waitAndExit(runner: CromwellSystem => Future[Any], workflowManagerSystem: CromwellSystem): Unit = {
+  private def waitAndExit(runner: CromwellSystem => Future[Any], workflowManagerSystem: CromwellSystem): Unit = {
     val futureResult = runner(workflowManagerSystem)
     Await.ready(futureResult, Duration.Inf)
 
@@ -123,22 +128,15 @@ object CromwellCommandLine {
 
     sys.exit(returnCode)
   }
-}
 
-final case class RunSingle(sourceFiles: WorkflowSourceFilesCollection, config: CommandLineArguments) extends CromwellCommandLine
+  private def validateRunArguments(args: CommandLineArguments): WorkflowSourceFilesCollection = {
 
-object RunSingle {
+    val workflowSource = readContent("Workflow source", args.workflowSource.get)
+    val inputsJson = readJson("Workflow inputs", args.workflowInputs)
+    val optionsJson = readJson("Workflow options", args.workflowOptions)
+    val labelsJson = readJson("Labels", args.labels)
 
-  lazy val Log = LoggerFactory.getLogger("cromwell")
-
-  def apply(config: CommandLineArguments): RunSingle = {
-
-    val workflowSource = readContent("Workflow source", config.workflowSource.get)
-    val inputsJson = readJson("Workflow inputs", config.workflowInputs)
-    val optionsJson = readJson("Workflow options", config.workflowOptions)
-    val labelsJson = readJson("Labels", config.labels)
-
-    val sourceFileCollection = config.imports match {
+    val sourceFileCollection = args.imports match {
       case Some(p) => (workflowSource |@| inputsJson |@| optionsJson |@| labelsJson) map { (w, i, o, l) =>
         WorkflowSourceFilesWithDependenciesZip.apply(
           workflowSource = w,
@@ -161,12 +159,12 @@ object RunSingle {
       }
     }
 
-    val runSingle: ErrorOr[RunSingle] = for {
+    val sourceFiles = for {
       sources <- sourceFileCollection
-      _ <- writeableMetadataPath(config.metadataOutputPath)
-    } yield RunSingle(sources, config)
+      _ <- writeableMetadataPath(args.metadataOutputPath)
+    } yield sources
 
-    runSingle match {
+    sourceFiles match {
       case Valid(r) => r
       case Invalid(nel) => throw new RuntimeException with MessageAggregation {
         override def exceptionContext: String = "ERROR: Unable to run Cromwell:"
