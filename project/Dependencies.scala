@@ -160,7 +160,7 @@ object Dependencies {
 
   val jesBackendDependencies = refinedTypeDependenciesList
 
-  val sprayClientDependency = "io.spray" %% "spray-client" % "1.3.3"
+  val sprayClientDependency = List("io.spray" %% "spray-client" % "1.3.3")
 
   val tesBackendDependencies = sprayClientDependency
   val sparkBackendDependencies = sprayClientDependency
