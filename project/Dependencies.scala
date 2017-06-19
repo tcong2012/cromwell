@@ -3,7 +3,6 @@ import sbt._
 object Dependencies {
   lazy val lenthallV = "0.25-903b3c0-SNAP"
   lazy val wdl4sV = "0.13-4804734-SNAP"
-  lazy val sprayV = "1.3.3"
 
   lazy val akkaV = "2.4.16"
   lazy val akkaHttpV = "10.0.5"
@@ -68,14 +67,6 @@ object Dependencies {
     "org.webjars" % "swagger-ui" % "2.1.1",
     "com.typesafe.akka" %% "akka-http" % akkaHttpV,
     "com.typesafe.akka" %% "akka-http-testkit" % akkaHttpV % Test
-  )
-
-  private val sprayServerDependencies = List(
-    "org.webjars" % "swagger-ui" % "2.1.1",
-    "io.spray" %% "spray-can" % sprayV,
-    "io.spray" %% "spray-routing-shapeless2" % sprayV,
-    "io.spray" %% "spray-http" % sprayV,
-    "io.spray" %% "spray-testkit" % sprayV % Test
   )
 
   private val googleApiClientDependencies = List(
@@ -153,33 +144,24 @@ object Dependencies {
     "org.pegdown" % "pegdown" % "1.6.0" % Test
   )
 
-  val FixmeBackendDependencies = List(
-    "com.typesafe.akka" %% "akka-http-core" % "2.4.11.2",
-    "com.typesafe.akka" %% "akka-stream-testkit" % "2.4.11.2",
-    "com.typesafe.akka" %% "akka-http-spray-json" % akkaHttpV
-  )
-
-  val jesBackendDependencies = refinedTypeDependenciesList
-
-  val tesBackendDependencies = List(
-    "io.spray" %% "spray-client" % sprayV
-  ) ++ FixmeBackendDependencies
-
-  val sparkBackendDependencies = List(
-    "io.spray" %% "spray-client" % sprayV
-  ) ++ FixmeBackendDependencies
-
   val engineDependencies = List(
     "commons-codec" % "commons-codec" % "1.10",
     "commons-io" % "commons-io" % "2.5",
-    "com.storm-enroute" %% "scalameter" % "0.8.2"      
+    "com.storm-enroute" %% "scalameter" % "0.8.2"
       exclude("com.fasterxml.jackson.core", "jackson-databind")
       exclude("com.fasterxml.jackson.module", "jackson-module-scala"),
     "com.fasterxml.jackson.core" % "jackson-databind" % "2.7.9.1",
     "com.fasterxml.jackson.module" %% "jackson-module-scala" % "2.7.9",
     "io.swagger" % "swagger-parser" % "1.0.22" % Test,
     "org.yaml" % "snakeyaml" % "1.17" % Test
-  ) ++ akkaHttpServerDependencies ++ sprayServerDependencies
+  ) ++ akkaHttpServerDependencies
 
   val rootDependencies = slf4jBindingDependencies
+
+  val jesBackendDependencies = refinedTypeDependenciesList
+
+  val sprayClientDependency = "io.spray" %% "spray-client" % "1.3.3"
+
+  val tesBackendDependencies = sprayClientDependency
+  val sparkBackendDependencies = sprayClientDependency
 }
