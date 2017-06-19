@@ -7,6 +7,7 @@ import akka.http.scaladsl.server.Directives._
 
 import akka.stream.ActorMaterializer
 import akka.util.Timeout
+import cromwell.core.Dispatcher.EngineDispatcher
 import cromwell.webservice.{AkkaHttpService, SwaggerService}
 import cromwell.webservice.WrappedRoute._
 import net.ceedubs.ficus.Ficus._
