@@ -73,6 +73,6 @@ class CromwellServerActor(cromwellSystem: CromwellSystem)(override implicit val 
 
 object CromwellServerActor {
   def props(cromwellSystem: CromwellSystem)(implicit materializer: ActorMaterializer): Props = {
-    Props(new CromwellServerActor(cromwellSystem))
+    Props(new CromwellServerActor(cromwellSystem)).withDispatcher(EngineDispatcher)
   }
 }

@@ -285,22 +285,22 @@ class MetadataBuilderActorSpec extends TestKitSuite("Metadata") with AsyncFlatSp
     assertMetadataKeyStructure(eventBuilderList, expectedRes)
   }
 
-//  it should "override json values if they can't be merged" in {
-//    val kv = ("key", "value", OffsetDateTime.now)
-//    val ksv2 = ("key:subkey", "value2", OffsetDateTime.now.plusSeconds(1))
-//    val kisv3 = ("key[0]:subkey", "value3", OffsetDateTime.now.plusSeconds(2))
-//    val kiv4 = ("key[0]", "value4", OffsetDateTime.now.plusSeconds(3))
-//
-//    val t = Table(
-//      ("list", "res"),
-//      (List(kv),  """"key": "value""""),
-//      (List(kv, ksv2),  """"key": { "subkey": "value2" }"""),
-//      (List(kv, ksv2, kisv3),  """"key": [ { "subkey": "value3" } ]"""),
-//      (List(kv, ksv2, kisv3, kiv4),  """"key": [ "value4" ]""")
-//    )
-//
-//    forAll(t) { (l, r) => assertMetadataKeyStructure(l, r) }
-//  }
+  it should "override json values if they can't be merged" in {
+    val kv = ("key", "value", OffsetDateTime.now)
+    val ksv2 = ("key:subkey", "value2", OffsetDateTime.now.plusSeconds(1))
+    val kisv3 = ("key[0]:subkey", "value3", OffsetDateTime.now.plusSeconds(2))
+    val kiv4 = ("key[0]", "value4", OffsetDateTime.now.plusSeconds(3))
+
+    val t = Table(
+      ("list", "res"),
+      (List(kv),  """"key": "value""""),
+      (List(kv, ksv2),  """"key": { "subkey": "value2" }"""),
+      (List(kv, ksv2, kisv3),  """"key": [ { "subkey": "value3" } ]"""),
+      (List(kv, ksv2, kisv3, kiv4),  """"key": [ "value4" ]""")
+    )
+
+    forAll(t) { (l, r) => assertMetadataKeyStructure(l, r) }
+  }
 
   it should "coerce values to supported types" in {
     val workflowId = WorkflowId.randomId()

@@ -13,7 +13,7 @@ import cromwell.core.{WorkflowId, WorkflowMetadataKeys, WorkflowState}
 import cromwell.services.ServiceRegistryActor.ServiceRegistryFailure
 import cromwell.services.metadata.MetadataService._
 import cromwell.services.metadata._
-import cromwell.webservice.metadata.MetadataBuilderActor.{BuiltMetadataResponse, FailedMetadataResponse, Idle, MetadataBuilderActorData, MetadataBuilderActorResponse, MetadataBuilderActorState, WaitingForMetadataService, WaitingForSubWorkflows}
+import cromwell.webservice.metadata.MetadataBuilderActor._
 import org.slf4j.LoggerFactory
 import spray.json._
 
@@ -217,7 +217,7 @@ object MetadataBuilderActor {
     JsObject(events.groupBy(_.key.workflowId.toString) mapValues parseWorkflowEvents(includeCallsIfEmpty = true, expandedValues))
   }
 
-  def actorName: String = List("MetadataBuilderActor", UUID.randomUUID()).mkString("-")
+  def uniqueActorName: String = List("MetadataBuilderActor", UUID.randomUUID()).mkString("-")
 }
 
 class MetadataBuilderActor(serviceRegistryActor: ActorRef) extends LoggingFSM[MetadataBuilderActorState, Option[MetadataBuilderActorData]]
@@ -228,7 +228,7 @@ class MetadataBuilderActor(serviceRegistryActor: ActorRef) extends LoggingFSM[Me
 
   startWith(Idle, None)
   val tag = self.path.name
-  
+
   when(Idle) {
     case Event(action: MetadataServiceAction, _) =>
       target = sender()
@@ -266,18 +266,18 @@ class MetadataBuilderActor(serviceRegistryActor: ActorRef) extends LoggingFSM[Me
       context stop self
       stay()
   }
-  
+
   when(WaitingForSubWorkflows) {
     case Event(mbr: MetadataBuilderActorResponse, Some(data)) =>
       processSubWorkflowMetadata(mbr, data)
   }
-  
+
   whenUnhandled {
     case Event(message, data) =>
       log.error(s"Received unexpected message $message in state $stateName with data $data")
       stay()
   }
-  
+
   def processSubWorkflowMetadata(metadataResponse: MetadataBuilderActorResponse, data: MetadataBuilderActorData) = {
     metadataResponse match {
       case BuiltMetadataResponse(js) =>
@@ -301,12 +301,12 @@ class MetadataBuilderActor(serviceRegistryActor: ActorRef) extends LoggingFSM[Me
     context stop self
     stay()
   }
-  
+
   def buildAndStop(query: MetadataQuery, eventsList: Seq[MetadataEvent], expandedValues: Map[String, JsValue]) = {
     target ! BuiltMetadataResponse(processMetadataEvents(query, eventsList, expandedValues))
     allDone
   }
-  
+
   def processMetadataResponse(query: MetadataQuery, eventsList: Seq[MetadataEvent]) = {
     if (query.expandSubWorkflows) {
       // Scan events for sub workflow ids
@@ -319,7 +319,7 @@ class MetadataBuilderActor(serviceRegistryActor: ActorRef) extends LoggingFSM[Me
       else {
         // Otherwise spin up a metadata builder actor for each sub workflow
         subWorkflowIds foreach { subId =>
-          val subMetadataBuilder = context.actorOf(MetadataBuilderActor.props(serviceRegistryActor), actorName)
+          val subMetadataBuilder = context.actorOf(MetadataBuilderActor.props(serviceRegistryActor), uniqueActorName)
           subMetadataBuilder ! GetMetadataQueryAction(query.copy(workflowId = WorkflowId.fromString(subId)))
         }
         goto(WaitingForSubWorkflows) using Option(MetadataBuilderActorData(query, eventsList, Map.empty, subWorkflowIds.size))

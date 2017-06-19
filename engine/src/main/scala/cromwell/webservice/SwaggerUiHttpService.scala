@@ -22,7 +22,7 @@ trait SwaggerUiHttpService {
    *
    * @return The base URL used by the application, or the empty string if there is no base URL. For example "/myapp".
    */
-  def swaggerUiBaseUrl:String = ""
+  def swaggerUiBaseUrl: String = ""
 
   /**
    * @return The path to the swagger UI html documents. For example "swagger"

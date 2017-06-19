@@ -63,7 +63,7 @@ object Dependencies {
     "com.mattbertolini" % "liquibase-slf4j" % "2.0.0"
   )
 
-  val akkaHttpServerDependencies = List( // FIXME: do that cool map trick from circe
+  val akkaHttpServerDependencies = List( 
     "org.webjars" % "swagger-ui" % "2.1.1",
     "com.typesafe.akka" %% "akka-http" % akkaHttpV,
     "com.typesafe.akka" %% "akka-http-testkit" % akkaHttpV % Test
