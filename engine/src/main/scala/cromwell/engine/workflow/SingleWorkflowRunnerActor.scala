@@ -20,9 +20,8 @@ import cromwell.server.CromwellRootActor
 import cromwell.services.metadata.MetadataService.{GetSingleWorkflowMetadataAction, GetStatus, WorkflowOutputs}
 import cromwell.services.metadata.impl.WriteMetadataActor.{CheckPendingWrites, HasPendingWrites, NoPendingWrites}
 import cromwell.subworkflowstore.EmptySubWorkflowStoreActor
-import cromwell.webservice.PerRequest.RequestComplete
 import cromwell.webservice.metadata.MetadataBuilderActor
-import cromwell.webservice.metadata.MetadataBuilderActor.BuiltMetadataResponse
+import cromwell.webservice.metadata.MetadataBuilderActor.{BuiltMetadataResponse, FailedMetadataResponse}
 import spray.json._
 
 import scala.concurrent.ExecutionContext.Implicits.global
@@ -120,7 +119,7 @@ class SingleWorkflowRunnerActor(source: WorkflowSourceFilesCollection, metadataO
     case Event(r: WorkflowStoreEngineActor.WorkflowAbortFailed, data) => failAndFinish(r.reason, data)
     case Event(Failure(e), data) => failAndFinish(e, data)
     case Event(Status.Failure(e), data) => failAndFinish(e, data)
-    case Event(RequestComplete((_, snap)), data) => failAndFinish(new RuntimeException(s"Unexpected API completion message: $snap"), data)
+    case Event(FailedMetadataResponse(e), data) => failAndFinish(e, data)
     case Event((CurrentState(_, _) | Transition(_, _, _)), _) =>
       // ignore uninteresting current state and transition messages
       stay()
