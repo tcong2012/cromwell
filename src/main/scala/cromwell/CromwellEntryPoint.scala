@@ -41,18 +41,6 @@ object CromwellEntryPoint {
     waitAndExit(_ => runner.askNoTimeout(RunWorkflow), cromwellSystem)
   }
 
-  private object LogMode {
-    sealed trait Mode {
-      def logbackSetting: String
-    }
-    case object Standard extends Mode {
-      override val logbackSetting: String = "STANDARD"
-    }
-    case object Pretty extends Mode {
-      override val logbackSetting: String = "PRETTY"
-    }
-  }
-
   private def buildCromwellSystem(command: Command): CromwellSystem = {
     initLogging(command)
     buildCromwellSystem
@@ -68,13 +56,13 @@ object CromwellEntryPoint {
     * Fixes issue where users are trying to specify Java properties as environment variables.
     */
   private def initLogging(command: Command): Unit = {
-    val logMode = command match {
-      case Server => LogMode.Standard
-      case Run => LogMode.Pretty
+    val logbackSetting = command match {
+      case Server => "STANDARD"
+      case Run => "PRETTY"
     }
 
     val defaultProps = Map(
-      "LOG_MODE" -> logMode.logbackSetting,
+      "LOG_MODE" -> logbackSetting,
       "LOG_LEVEL" -> "INFO"
     )
 
