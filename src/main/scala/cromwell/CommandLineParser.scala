@@ -2,6 +2,7 @@ package cromwell
 
 import com.typesafe.config.ConfigFactory
 import cromwell.core.path.{DefaultPathBuilder, Path}
+import scopt.OptionParser
 
 object CommandLineParser extends App {
 
@@ -22,6 +23,8 @@ object CommandLineParser extends App {
 
   lazy val cromwellVersion = ConfigFactory.load("cromwell-version.conf").getConfig("version").getString("cromwell")
 
+  case class ParserAndCommand(parser: OptionParser[CommandLineArguments], command: Option[Command])
+
 //  Usage: cromwell [server|run] [options] <args>...
 //
 //    --help                   Cromwell - Lord Protector / Workflow Execution Engine
@@ -41,60 +44,62 @@ object CommandLineParser extends App {
 //    -m, --metadata-output-path <value>
 //                             An optional file path to output metadata.
 
-  val parser = new scopt.OptionParser[CommandLineArguments]("cromwell") {
-    head("cromwell", cromwellVersion)
+  def buildParser(): scopt.OptionParser[CommandLineArguments] = {
+    new scopt.OptionParser[CommandLineArguments]("cromwell") {
+      head("cromwell", cromwellVersion)
 
-    help("help").text("Cromwell - Lord Protector / Workflow Execution Engine")
+      help("help").text("Cromwell - Lord Protector / Workflow Execution Engine")
 
-    version("version")
+      version("version")
 
-    cmd("server").action((_, c) => c.copy(command = Option(Server))).text(
-      "Starts a web server on port 8000.  See the web server documentation for more details about the API endpoints.")
+      cmd("server").action((_, c) => c.copy(command = Option(Server))).text(
+        "Starts a web server on port 8000.  See the web server documentation for more details about the API endpoints.")
 
-    cmd("run").
-      action((_, c) => c.copy(command = Option(Run))).
-      text("Run the workflow locally and print out the outputs in JSON format.").
-      children(
-        arg[String]("workflow-source").text("Workflow source file.").required().
-          action((s, c) => c.copy(workflowSource = Option(DefaultPathBuilder.get(s)))),
-        opt[String]('i', "inputs").text("Workflow inputs file.").
-          action((s, c) =>
-            c.copy(workflowInputs = Option(DefaultPathBuilder.get(s)))),
-        opt[String]('o', "options").text("Workflow options file.").
-          action((s, c) =>
-            c.copy(workflowOptions = Option(DefaultPathBuilder.get(s)))),
-        opt[String]('t', "type").text("Workflow type.").
-          action((s, c) =>
-            c.copy(workflowType = Option(s))),
-        opt[String]('v', "type-version").text("Workflow type version.").
-          action((s, c) =>
-            c.copy(workflowTypeVersion = Option(s))),
-        opt[String]('l', "labels").text("Labels file.").
-          action((s, c) =>
-            c.copy(labels = Option(DefaultPathBuilder.get(s)))),
-        opt[String]('p', "imports").text(
-          "A directory to search for WDL file imports, required for imported workflows outside the root directory of the Cromwell project.").
-          action((s, c) =>
-            c.copy(imports = Option(DefaultPathBuilder.get(s)))),
-        opt[String]('m', "metadata-output-path").text(
-          "An optional file path to output metadata.").
-          action((s, c) =>
-            c.copy(metadataOutputPath = Option(DefaultPathBuilder.get(s))))
-      )
+      cmd("run").
+        action((_, c) => c.copy(command = Option(Run))).
+        text("Run the workflow locally and print out the outputs in JSON format.").
+        children(
+          arg[String]("workflow-source").text("Workflow source file.").required().
+            action((s, c) => c.copy(workflowSource = Option(DefaultPathBuilder.get(s)))),
+          opt[String]('i', "inputs").text("Workflow inputs file.").
+            action((s, c) =>
+              c.copy(workflowInputs = Option(DefaultPathBuilder.get(s)))),
+          opt[String]('o', "options").text("Workflow options file.").
+            action((s, c) =>
+              c.copy(workflowOptions = Option(DefaultPathBuilder.get(s)))),
+          opt[String]('t', "type").text("Workflow type.").
+            action((s, c) =>
+              c.copy(workflowType = Option(s))),
+          opt[String]('v', "type-version").text("Workflow type version.").
+            action((s, c) =>
+              c.copy(workflowTypeVersion = Option(s))),
+          opt[String]('l', "labels").text("Labels file.").
+            action((s, c) =>
+              c.copy(labels = Option(DefaultPathBuilder.get(s)))),
+          opt[String]('p', "imports").text(
+            "A directory to search for WDL file imports, required for imported workflows outside the root directory of the Cromwell project.").
+            action((s, c) =>
+              c.copy(imports = Option(DefaultPathBuilder.get(s)))),
+          opt[String]('m', "metadata-output-path").text(
+            "An optional file path to output metadata.").
+            action((s, c) =>
+              c.copy(metadataOutputPath = Option(DefaultPathBuilder.get(s))))
+        )
+    }
   }
 
-  private def runCromwell(command: Command, args: CommandLineArguments): Unit = {
-    command match {
+  def runCromwell(args: CommandLineArguments): Unit = {
+    args.command foreach {
       case Run => CromwellEntryPoint.runSingle(args)
       case Server => CromwellEntryPoint.runServer()
     }
   }
 
-  val run = for {
-    config <- parser.parse(args, CommandLineArguments())
-    command <- config.command
-  } yield runCromwell(command, config)
+  val parser = buildParser()
 
-  // parser.parse returns Option[C].  If this is `None` (corresponding to invalid arguments) show usage and exit.
-  run getOrElse parser.showUsageAsError()
+  val parsedArgs = parser.parse(args, CommandLineArguments())
+  parsedArgs match {
+    case Some(pa) => runCromwell(pa)
+    case None => parser.showUsage()
+  }
 }
